@@ -1,0 +1,4 @@
+interface:
+  display_name: "繁體中文字幕設定"
+  short_description: "沿用繁體字幕樣式、句末去標點與整組共用控制，並按需求高畫質匯出"
+  default_prompt: "使用 $diffusion-tc-subtitles，依我的字幕規則調整目前 Diffusion Studio 專案。"

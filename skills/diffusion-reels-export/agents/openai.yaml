@@ -1,0 +1,3 @@
+interface:
+  display_name: "IG Reels 高品質出片"
+  short_description: "人工審核完成後，將 Diffusion 成片高品質輸出至桌面待發佈資料夾"

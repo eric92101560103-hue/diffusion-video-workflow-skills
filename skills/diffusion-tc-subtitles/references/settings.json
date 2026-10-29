@@ -1,0 +1,57 @@
+{
+  "subtitleFont": "Noto Sans TC",
+  "subtitleSize": 80,
+  "subtitleWeight": 500,
+  "subtitleFontStyle": "normal",
+  "subtitleColor": "#FFFFFF",
+  "subtitleLeading": 0.9,
+  "subtitleLetterSpacing": 0.5,
+  "subtitleTextCase": "original",
+  "subtitleAlign": "center",
+  "subtitleBaseline": "bottom",
+  "subtitleCentered": true,
+  "subtitleLeft": 203.5,
+  "subtitleTop": 1887,
+  "subtitleWidth": 1033,
+  "subtitleHeight": 91,
+  "subtitleKeepAspect": false,
+  "subtitleRotation": 0,
+  "subtitleScaleX": 1,
+  "subtitleScaleY": 1,
+  "subtitleOffsetX": 0,
+  "subtitleOffsetY": 0,
+  "subtitleOpacity": 90,
+  "subtitleBlendMode": "sourceOver",
+  "subtitleVisible": true,
+  "subtitleStrokeEnabled": false,
+  "subtitleStrokeColor": "#000000",
+  "subtitleOutline": 6,
+  "subtitleStrokeOpacity": 100,
+  "subtitleStrokeJoin": "round",
+  "subtitleShadowEnabled": true,
+  "subtitleShadowColor": "#000000",
+  "subtitleShadowOpacity": 77,
+  "subtitleShadowBlur": 0,
+  "subtitleShadowDistance": 5,
+  "subtitleShadowAngle": -45,
+  "referenceCanvas": {
+    "width": 1440,
+    "height": 2560
+  },
+  "export": {
+    "format": "mp4",
+    "video": {
+      "enabled": true,
+      "codec": "avc",
+      "bitrate": 24000000,
+      "fps": 30,
+      "resolution": 1440
+    },
+    "audio": {
+      "enabled": true,
+      "codec": "aac",
+      "sampleRate": 48000,
+      "bitrate": 256000
+    }
+  }
+}
