@@ -1,6 +1,6 @@
 ---
 name: diffusion-reels-export
-description: 使用者人工審核完成並要求出片時，將目前 Diffusion Studio 專案以高品質 IG Reels MP4 匯出，驗證後存到桌面/Reels成片/待發佈。只做成片輸出與交付，不包含字幕製作或社群發佈。
+description: 使用者人工審核完成並要求出片時，將目前 Diffusion Studio 專案以高品質 IG Reels MP4 匯出，驗證後存到桌面/Reels 成片/待發佈。只做成片輸出與交付，不包含字幕製作或社群發佈。
 ---
 
 # IG Reels 高品質出片
@@ -43,7 +43,7 @@ description: 使用者人工審核完成並要求出片時，將目前 Diffusion
 
 ## 4. 交付到桌面
 
-預設目的地為 `~/Desktop/Reels成片/待發佈/`，不存在時建立；按當前執行環境的檔案權限操作。
+預設目的地為 `~/Desktop/Reels 成片/待發佈/`。先檢查既有相近名稱資料夾，沿用使用者已有的成片目錄，避免另建僅空格不同的副本；確定不存在時才建立，並按當前執行環境的檔案權限操作。
 
 檔名使用 `<影片名稱>_IGReels_<台北時間YYYYMMDD-HHMMSS>.mp4`。名稱優先用使用者指定，其次用有意義的專案名稱；Untitled／未命名專案改用主要素材名稱。清理路徑分隔符。同名時加版本序號，以不覆寫方式建立新檔，保留既有成片。
 
