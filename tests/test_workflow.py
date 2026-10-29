@@ -1,32 +1,13 @@
-from datetime import datetime, timezone
-from pathlib import Path
-from tempfile import TemporaryDirectory
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 import os
 import unittest
 
 from reel_publisher import Config, Workflow
+from tests.support import WorkflowFixture
 
 
-class WorkflowTests(unittest.TestCase):
-    def setUp(self):
-        self.temporary = TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
-        self.source = self.root / '待發佈'
-        self.archive = self.root / '已發佈'
-        self.source.mkdir()
-        self.archive.mkdir()
-        self.now = datetime(2026, 11, 1, 2, tzinfo=timezone.utc)
-        self.config = Config(self.root / 'state.sqlite3', self.source, self.archive)
-
-    def video(self, name='reel.mp4', content=b'completed video', directory=None):
-        path = (directory or self.source) / name
-        path.write_bytes(content)
-        os.utime(path, (self.now.timestamp() - 60, self.now.timestamp() - 60))
-        return path
-
-    def workflow(self):
-        return Workflow(self.config, now=lambda: self.now, inspect_media=lambda path: None)
+class WorkflowTests(WorkflowFixture):
 
     def test_scan_makes_new_video_retrievable_without_moving_or_publishing(self):
         path = self.video()
@@ -81,6 +62,28 @@ class WorkflowTests(unittest.TestCase):
             with self.assertRaisesRegex(Exception, '已發佈資料夾'):
                 workflow.scan()
             self.assertEqual(workflow.list_candidates(), [])
+
+    def test_archived_duplicate_exposes_local_evidence_without_platform_claim(self):
+        archived = self.video('old.mp4', directory=self.archive)
+        self.video('renamed.mp4')
+        with self.workflow() as workflow:
+            result = workflow.scan()
+            self.assertEqual(result.skipped[0].evidence, 'local_archive')
+            self.assertEqual(result.skipped[0].reference, str(archived))
+            self.assertFalse(result.skipped[0].platform_verified)
+
+    def test_simultaneous_first_launches_can_all_read_the_same_state(self):
+        for attempt in range(8):
+            config = Config(self.root / f'concurrent-{attempt}.sqlite3', self.source, self.archive)
+            barrier = Barrier(8)
+
+            def start(_):
+                barrier.wait()
+                with Workflow(config) as workflow:
+                    return workflow.list_candidates()
+
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                self.assertEqual(list(pool.map(start, range(8))), [[]] * 8)
 
 
 if __name__ == '__main__':

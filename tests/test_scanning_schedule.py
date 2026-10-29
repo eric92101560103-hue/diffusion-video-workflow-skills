@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from tests.test_workflow import WorkflowTests
+from tests.support import WorkflowFixture
 
 
 class Mailbox:
@@ -11,7 +11,7 @@ class Mailbox:
         self.messages.append(notice)
 
 
-class ScanScheduleTests(WorkflowTests):
+class ScanScheduleTests(WorkflowFixture):
     def test_every_two_days_discovers_new_candidates_and_notifies_once(self):
         self.video()
         mailbox = Mailbox()

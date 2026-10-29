@@ -39,12 +39,22 @@ class Candidate:
     revision: int
     scheduled_for: str | None
     approval_revision: int | None
+    status_reason: str | None
+
+
+@dataclass(frozen=True)
+class SkippedFile:
+    path: str
+    reason: str
+    evidence: str | None = None
+    reference: str | None = None
+    platform_verified: bool = False
 
 
 @dataclass(frozen=True)
 class ScanResult:
     discovered: tuple[Candidate, ...]
-    skipped: tuple[tuple[str, str], ...]
+    skipped: tuple[SkippedFile, ...]
 
 
 @dataclass(frozen=True)
@@ -97,8 +107,18 @@ class Workflow:
         os.close(descriptor)
         self.db = sqlite3.connect(config.database, isolation_level=None, timeout=10)
         self.db.row_factory = sqlite3.Row
+        try:
+            self._initialize_schema()
+        except sqlite3.Error as error:
+            self.db.close()
+            raise WorkflowError('狀態資料庫初始化失敗，請稍後再試') from error
+
+    def _initialize_schema(self) -> None:
+        # Serialize the entire check-and-migrate operation across processes.
+        # The transaction stays open through introspection and ALTER statements.
         self.db.executescript('''
             PRAGMA foreign_keys = ON;
+            BEGIN IMMEDIATE;
             CREATE TABLE IF NOT EXISTS candidates (
                 id TEXT PRIMARY KEY,
                 path TEXT NOT NULL,
@@ -122,9 +142,11 @@ class Workflow:
             'revision': 'INTEGER NOT NULL DEFAULT 1',
             'scheduled_for': 'TEXT',
             'approval_revision': 'INTEGER',
+            'status_reason': 'TEXT',
         }.items():
             if column not in columns:
                 self.db.execute(f'ALTER TABLE candidates ADD COLUMN {column} {definition}')
+        self.db.execute('COMMIT')
 
     def __enter__(self) -> 'Workflow':
         return self
@@ -143,6 +165,7 @@ class Workflow:
             int(row['revision']),
             None if row['scheduled_for'] is None else str(row['scheduled_for']),
             None if row['approval_revision'] is None else int(row['approval_revision']),
+            None if row['status_reason'] is None else str(row['status_reason']),
         )
 
     def get(self, candidate_id: str) -> Candidate:
@@ -370,7 +393,7 @@ class Workflow:
         if not self.config.published.is_dir():
             raise WorkflowError('已發佈資料夾不存在，無法先比對既有成片')
         discovered: list[Candidate] = []
-        skipped: list[tuple[str, str]] = []
+        skipped: list[SkippedFile] = []
         try:
             archive = sorted(self.config.published.iterdir())
             sources = sorted(self.config.source.iterdir())
@@ -390,11 +413,22 @@ class Workflow:
                     before = path.stat()
                     if before.st_size == 0 or self.now().timestamp() - before.st_mtime < self.config.stable_seconds:
                         raise WorkflowError('影片仍在複製或尚未穩定')
-                    self.inspect_media(path)
                     digest = fingerprint(path)
                     after = path.stat()
                     if (before.st_size, before.st_mtime_ns, before.st_ino) != (
                         after.st_size, after.st_mtime_ns, after.st_ino
+                    ):
+                        raise WorkflowError('影片仍在變動，稍後再掃描')
+                    self.db.execute(
+                        "UPDATE candidates SET status = 'invalidated', approval_revision = NULL, "
+                        "revision = revision + 1, status_reason = '影片內容已變更，舊核准失效' "
+                        "WHERE path = ? AND fingerprint != ? AND status IN ('candidate', 'approved')",
+                        (str(path.resolve()), digest),
+                    )
+                    self.inspect_media(path)
+                    final = path.stat()
+                    if (before.st_size, before.st_mtime_ns, before.st_ino) != (
+                        final.st_size, final.st_mtime_ns, final.st_ino
                     ):
                         raise WorkflowError('影片仍在變動，稍後再掃描')
                     previous = self.db.execute(
@@ -409,7 +443,17 @@ class Workflow:
                                 'UPDATE candidates SET path = ? WHERE id = ?',
                                 (str(path.resolve()), previous['id']),
                             )
-                        skipped.append((str(path), '內容重複；若要重發請明確建立重發候選'))
+                        if archived:
+                            skipped.append(SkippedFile(
+                                str(path), '與本機已發佈資料夾內容相同；平台發佈未驗證',
+                                'local_archive', str(archived['path']),
+                            ))
+                        else:
+                            assert previous is not None
+                            skipped.append(SkippedFile(
+                                str(path), '內容重複；若要重發請明確建立重發候選',
+                                'existing_candidate', str(previous['id']),
+                            ))
                         continue
                     candidate_id = uuid.uuid4().hex
                     self.db.execute(
@@ -418,7 +462,7 @@ class Workflow:
                     )
                     discovered.append(self.get(candidate_id))
                 except (OSError, ValueError, WorkflowError) as error:
-                    skipped.append((str(path), str(error)))
+                    skipped.append(SkippedFile(str(path), str(error)))
             self.db.execute('COMMIT')
         except (OSError, sqlite3.Error, WorkflowError) as error:
             if self.db.in_transaction:

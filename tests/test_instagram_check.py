@@ -1,6 +1,6 @@
 from reel_publisher import WorkflowError
 from reel_publisher.instagram import Account
-from tests.test_workflow import WorkflowTests
+from tests.support import WorkflowFixture
 
 
 class Connection:
@@ -11,7 +11,7 @@ class Connection:
         return Account('123456', self.username)
 
 
-class InstagramCheckTests(WorkflowTests):
+class InstagramCheckTests(WorkflowFixture):
     def test_account_check_matches_exact_target_and_never_claims_publishing_permission(self):
         with self.workflow() as workflow:
             result = workflow.check_instagram(Connection('_eric_han'))

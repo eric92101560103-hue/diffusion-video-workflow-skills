@@ -1,10 +1,10 @@
 from datetime import date, datetime, timezone
 
 from reel_publisher import WorkflowError
-from tests.test_workflow import WorkflowTests
+from tests.support import WorkflowFixture
 
 
-class ReviewTests(WorkflowTests):
+class ReviewTests(WorkflowFixture):
     def candidates(self):
         self.video('one.mp4', b'first completed video')
         self.video('two.mp4', b'second completed video')
@@ -83,6 +83,22 @@ class ReviewTests(WorkflowTests):
             appended = workflow.preview([second.id])
             self.assertEqual(appended[0].scheduled_for, '2026-11-05T20:00:00+08:00')
             self.assertEqual(workflow.get(first.id).scheduled_for, '2026-11-03T20:00:00+08:00')
+
+    def test_rescan_invalidates_replaced_approved_content_and_releases_its_slot(self):
+        first, _ = self.candidates()
+        with self.workflow() as workflow:
+            workflow.set_caption(first.id, '原文案')
+            plan = workflow.preview([first.id], first_date=date(2026, 11, 3))
+            workflow.approve({first.id: plan[0].revision})
+            self.video('one.mp4', b'a new cut of the video')
+            replacement = workflow.scan().discovered[0]
+            old = workflow.get(first.id)
+            self.assertEqual(old.status, 'invalidated')
+            self.assertIsNone(old.approval_revision)
+            self.assertIn('變更', old.status_reason)
+            refreshed = workflow.preview([replacement.id])
+            self.assertEqual(refreshed[0].scheduled_for, '2026-11-03T20:00:00+08:00')
+            self.assertIsNone(refreshed[0].caption)
 
 
 if __name__ == '__main__':
