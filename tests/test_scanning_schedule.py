@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from tests.support import WorkflowFixture
+from reel_publisher import WorkflowError
 
 
 class Mailbox:
@@ -70,11 +71,6 @@ class ScanScheduleTests(WorkflowFixture):
             self.assertTrue(workflow.tick(first_scan=future, notifier=mailbox).scanned)
             self.assertEqual(mailbox.messages, [])
 
-
-if __name__ == '__main__':
-    import unittest
-    unittest.main()
-
 class ScanRecoveryTests(WorkflowFixture):
     def test_unknown_notice_requires_explicit_delivery_resolution_before_retry(self):
         class FailingMailbox:
@@ -94,7 +90,7 @@ class ScanRecoveryTests(WorkflowFixture):
     def test_missing_source_records_failure_without_advancing_scan_calendar(self):
         self.source.rmdir()
         with self.workflow() as workflow:
-            with self.assertRaises(Exception):
+            with self.assertRaises(WorkflowError):
                 workflow.tick(first_scan=self.now, notifier=Mailbox())
             status = workflow.scan_status()
             self.assertEqual(status['last_result'], 'failed')
@@ -106,3 +102,8 @@ class ScanRecoveryTests(WorkflowFixture):
             self.assertTrue(workflow.tick(first_scan=self.now, notifier=mailbox).scanned)
             self.assertEqual(workflow.scan_status()['last_result'], 'succeeded')
             self.assertEqual(len(mailbox.messages), 1)
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()

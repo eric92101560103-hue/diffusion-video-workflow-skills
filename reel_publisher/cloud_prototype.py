@@ -18,7 +18,6 @@ import json
 import os
 import sqlite3
 
-
 from .releases import ApprovedRelease
 
 
