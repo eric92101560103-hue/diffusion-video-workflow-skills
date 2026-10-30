@@ -47,11 +47,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     tick.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
     watch = commands.add_parser('watch', help='持續檢查到期掃描；需由本機背景服務維持執行')
     watch.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
+    commands.add_parser('scan-status', help='查看最後掃描結果與下一次到期時間')
+    resolve = commands.add_parser('notice-resolve', help='人工核對 unknown 後才允許標記或重寄')
+    resolve.add_argument('id')
+    resolve.add_argument('--outcome', choices=['delivered', 'not-delivered'], required=True)
+    resolve.add_argument('--confirm-checked', action='store_true', required=True)
     commands.add_parser('notices', help='查看通知結果，unknown 不自動重寄')
     commands.add_parser('instagram-check', help='只讀核對授權帳號，不代表已取得發佈權限')
+    service = commands.add_parser('scan-service-prepare', help='只產生未啟用的本機背景掃描設定')
+    service.add_argument('--directory', type=Path, required=True)
+    service.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
     arguments = parser.parse_args(argv)
     try:
         config = Config(arguments.database, arguments.source, arguments.published)
+        if arguments.command == 'scan-service-prepare':
+            from .scan_service import prepare
+            print(json.dumps(prepare(config, arguments.directory, arguments.first_scan), ensure_ascii=False))
+            return 0
         with Workflow(config) as workflow:
             if arguments.command == 'scan':
                 output: object = asdict(workflow.scan())
@@ -85,6 +97,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                         time.sleep(60)
                 except KeyboardInterrupt:
                     return 130
+            elif arguments.command == 'scan-status':
+                output = workflow.scan_status()
+            elif arguments.command == 'notice-resolve':
+                output = asdict(workflow.resolve_notice(arguments.id,
+                    delivered=arguments.outcome == 'delivered', confirmed=arguments.confirm_checked))
             elif arguments.command == 'notices':
                 output = [asdict(notice) for notice in workflow.notification_status()]
             else:
