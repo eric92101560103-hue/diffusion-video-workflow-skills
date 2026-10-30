@@ -30,3 +30,13 @@
 - 經具體授權後，備份並遷移原候選庫／chat-notices，更新原定時提示呼叫正式工具；不另建第二個任務。
 - 在真正到期時檢查通知可見性與離線恢復，才可驗收 #7。
 - IG 資產、正式上傳／發片、雲端服務與費用等由各原票繼續；本機通知不構成相關授權。
+
+## 實機安裝驗收（2026-10-30，使用者授權後）
+
+使用者已明確授權直接進行驗收。此輪以PR #15 `d52bbb1`建立獨立安裝包，使用本機Codex的正式指令註冊marketplace及安裝plugin。`codex plugin list --marketplace diffusion-reels-personal --json`確認`installed=true`、`enabled=true`、版本`0.1.0`，主機已接受portable manifest。
+
+安裝快取位於`~/.codex/plugins/cache/diffusion-reels-personal/diffusion-reels-local/0.1.0`。已逐一比對23個安裝檔與來源檔完全相同；以此快取中的入口、Python隔離模式及不載入site-packages，在臨時目錄執行合成影片：前置檢查→配置預設停用→啟用測試庫→掃描→重跑不重報→明確收到確認→文案→日期預覽→版本核准→停用。停用後chat-check拒絕執行，IG／SMTP／雲端命令拒絕，測試影片未移動。
+
+上述已證明真實Codex安裝管理器接受套件及安裝後工具可用，取代先前僅解壓驗證的部分證據。仍不能證明目前桌面App的既有／新對話已載入技能。電腦操作工具拒絕存取`com.openai.codex`，不能代替使用者重啟並檢查技能選單。此為工具限制，不是plugin載入失敗的證據。#13保持開啟，直到使用者完成畫面驗收。
+
+本輪未重啟App、未切換既有ACTIVE任務、未遷移真實候選庫、未讀取IG憑證，也未操作真實影片。#7真正到期與恢復驗收、T01/#2及其正式雲端依賴仍未通過。

@@ -20,7 +20,16 @@ python3 scripts/build_local_plugin.py --output /absolute/output/reels-local.zip
 codex plugin marketplace add /absolute/private/diffusion-reels-local-marketplace
 ```
 
-再於桌面 App 的 Plugins 選擇「Reels 本機工作流程」本機來源並安裝；官方文件要求重新啟動 App 讓本機來源更新。**本次僅在隔離目錄驗證套件解壓與 CLI 演示，沒有修改使用者的真實 marketplace、安裝清單或重新啟動 App。** App 實際辨識、新舊對話載入仍需在安裝後核對，不能以 JSON 檔有效就宣稱已載入。
+本機 Codex 若提供 `plugin add`，可直接完成安裝：
+
+```sh
+codex plugin add diffusion-reels-local@diffusion-reels-personal --json
+codex plugin list --marketplace diffusion-reels-personal --json
+```
+
+核對 installed=true 與 enabled=true。2026-10-30 已在使用者主機透過此指令安裝成功；安裝後快取副本也通過合成影片操作驗收，詳見[驗收紀錄](../reviews/codex-chat-plugin.md)。這仍不等於桌面對話已載入技能。
+
+若此主機沒有 CLI 安裝命令，則於桌面 App 的 Plugins 選擇「Reels 本機工作流程」本機來源並安裝；官方文件要求重新啟動 App 讓本機來源更新。**初次交付僅完成隔離演示；後續已依使用者授權註冊真實 marketplace 並安裝 plugin，尚未重啟 App。** App 實際辨識、新舊對話載入仍需在安裝後核對，不能以 JSON 檔有效就宣稱已載入。
 
 此為 skills + 本機 CLI 的 desktop-only plugin，沒有宣告 MCP server、遠端網站、連接器或安裝鉤子。原字幕及匯出技能保持原檔；它們仍需另外已安裝的 Diffusion Studio 工具。安裝不執行掃描、不建立排程、不啟用 watch 或寄信。
 
@@ -117,4 +126,4 @@ python3 /absolute/PLUGIN/scripts/reels.py --database /absolute/private/state.sql
 
 安裝包在臨時目錄解壓後，已用合成影片跑通公開 CLI 的 preflight → 配置／啟用 → 掃描 → 明確回報確認 → 重跑去重 → 文案／日期／版本核准 → 本機停用，未移動或上傳影片。另驗證並行觸發、輸出中斷、掃描中斷、錯誤／恢復與舊通知遷移。
 
-尚需使用者返回後實際安裝並讓 App 辨識、新對話與既有對話載入；再經授權遷移原狀態與更新原 ACTIVE 任務。真正08:00到期、桌面通知可見性與休眠恢復需 #7 實測。官方 IG、雲端排程、遠端事件同步與完整 plugin 在其他票驗收；此套件不替代它們。
+後續實機安裝與安裝副本驗證已完成；尚需使用者重啟 App 並核對新對話與既有對話載入；再經授權遷移原狀態與更新原 ACTIVE 任務。真正08:00到期、桌面通知可見性與休眠恢復需 #7 實測。官方 IG、雲端排程、遠端事件同步與完整 plugin 在其他票驗收；此套件不替代它們。
