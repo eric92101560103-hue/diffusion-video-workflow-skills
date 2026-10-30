@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from tests.support import WorkflowFixture
+from reel_publisher import WorkflowError
 
 
 class Mailbox:
@@ -69,6 +70,38 @@ class ScanScheduleTests(WorkflowFixture):
             self.now = future
             self.assertTrue(workflow.tick(first_scan=future, notifier=mailbox).scanned)
             self.assertEqual(mailbox.messages, [])
+
+class ScanRecoveryTests(WorkflowFixture):
+    def test_unknown_notice_requires_explicit_delivery_resolution_before_retry(self):
+        class FailingMailbox:
+            def send(self, notice):
+                raise TimeoutError('private')
+        self.video()
+        with self.workflow() as workflow:
+            workflow.tick(first_scan=self.now, notifier=FailingMailbox())
+            candidate = workflow.list_candidates()[0]
+            workflow.resolve_notice(candidate.id, delivered=False, confirmed=True)
+        mailbox = Mailbox()
+        with self.workflow() as workflow:
+            workflow.tick(first_scan=self.now, notifier=mailbox)
+            self.assertEqual(len(mailbox.messages), 1)
+            self.assertEqual(workflow.notification_status()[0].status, 'sent')
+
+    def test_missing_source_records_failure_without_advancing_scan_calendar(self):
+        self.source.rmdir()
+        with self.workflow() as workflow:
+            with self.assertRaises(WorkflowError):
+                workflow.tick(first_scan=self.now, notifier=Mailbox())
+            status = workflow.scan_status()
+            self.assertEqual(status['last_result'], 'failed')
+            self.assertIsNone(status['last_success'])
+        self.source.mkdir()
+        self.video()
+        mailbox = Mailbox()
+        with self.workflow() as workflow:
+            self.assertTrue(workflow.tick(first_scan=self.now, notifier=mailbox).scanned)
+            self.assertEqual(workflow.scan_status()['last_result'], 'succeeded')
+            self.assertEqual(len(mailbox.messages), 1)
 
 
 if __name__ == '__main__':

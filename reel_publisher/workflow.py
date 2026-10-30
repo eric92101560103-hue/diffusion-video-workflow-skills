@@ -12,6 +12,7 @@ import sqlite3
 import uuid
 from zoneinfo import ZoneInfo
 
+from .releases import ApprovedRelease
 from .media import inspect_video
 from .instagram import Account, InstagramAccountReader
 from .notifications import Notice, NoticeStatus, Notifier
@@ -178,6 +179,26 @@ class Workflow:
         rows = self.db.execute('SELECT * FROM candidates ORDER BY created_at, id').fetchall()
         return [self._candidate(row) for row in rows]
 
+    def export_release(self, candidate_id: str) -> ApprovedRelease:
+        """Preparation only: export the exact reviewed revision, without sending media."""
+        try:
+            self.db.execute('BEGIN IMMEDIATE')
+            candidate = self.get(candidate_id)
+            if (candidate.status != 'approved' or candidate.approval_revision != candidate.revision
+                    or not candidate.caption or not candidate.scheduled_for):
+                raise WorkflowError('需要完整核准且版本相符的候選')
+            if datetime.fromisoformat(candidate.scheduled_for) <= self.now():
+                raise WorkflowError('候選日期已過，請重新審核')
+            self._check_video(candidate)
+            release = ApprovedRelease(candidate.id, candidate.revision, candidate.fingerprint,
+                                      candidate.path, candidate.caption, candidate.scheduled_for)
+            self.db.execute('COMMIT')
+            return release
+        except (WorkflowError, sqlite3.Error):
+            if self.db.in_transaction:
+                self.db.execute('ROLLBACK')
+            raise
+
     def check_instagram(self, connection: InstagramAccountReader) -> Account:
         account = connection.account()
         if account.username.casefold() != '_eric_han':
@@ -187,6 +208,25 @@ class Workflow:
     def notification_status(self) -> list[NoticeStatus]:
         return [NoticeStatus(str(row['candidate_id']), str(row['status']))
                 for row in self.db.execute('SELECT * FROM notices ORDER BY candidate_id')]
+
+    def scan_status(self) -> dict[str, str | None]:
+        names = ('scan_anchor', 'next_scan', 'last_attempt', 'last_success', 'last_result')
+        values = {str(row['name']): str(row['value']) for row in self.db.execute(
+            "SELECT name, value FROM settings"
+        )}
+        return {name: values.get(name) for name in names}
+
+    def resolve_notice(self, candidate_id: str, *, delivered: bool, confirmed: bool = False) -> NoticeStatus:
+        if not confirmed:
+            raise WorkflowError('請先核對寄件服務與收件結果，再明確確認')
+        status = 'sent' if delivered else 'pending'
+        result = self.db.execute(
+            "UPDATE notices SET status = ? WHERE candidate_id = ? AND status = 'unknown'",
+            (status, candidate_id),
+        )
+        if result.rowcount != 1:
+            raise WorkflowError('只能處理待核對的通知，請先查看最新結果')
+        return NoticeStatus(candidate_id, status)
 
     def tick(self, *, first_scan: datetime, notifier: Notifier) -> TickResult:
         if first_scan.tzinfo is None:
@@ -207,7 +247,15 @@ class Workflow:
             discovered: tuple[Candidate, ...] = ()
             scanned = now >= next_scan
             if scanned:
-                result = self.scan()
+                self.db.execute('INSERT OR REPLACE INTO settings VALUES (?, ?)',
+                                ('last_attempt', now.isoformat()))
+                try:
+                    result = self.scan()
+                except (WorkflowError, OSError):
+                    self.db.execute('INSERT OR REPLACE INTO settings VALUES (?, ?)', ('last_result', 'failed'))
+                    raise
+                self.db.execute('INSERT OR REPLACE INTO settings VALUES (?, ?)', ('last_result', 'succeeded'))
+                self.db.execute('INSERT OR REPLACE INTO settings VALUES (?, ?)', ('last_success', now.isoformat()))
                 discovered = result.discovered
                 while next_scan <= now:
                     next_scan += timedelta(days=2)

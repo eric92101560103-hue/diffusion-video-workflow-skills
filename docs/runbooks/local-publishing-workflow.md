@@ -92,3 +92,45 @@ python3 -m reel_publisher instagram-check
 | #5、#6、#8–#11 | 需求與依賴已記錄 | 依前置任務完成後繼續，雲端尚未部署 |
 
 停止本機 `watch` 只能停止新候選掃描。未來若已啟用雲端發佈，停止本機程式不能視為取消雲端排程。
+
+## 準備背景服務（不啟用）
+
+在 repo 的虛擬環境完成安裝後，以使用者選定的首次掃描時間產生新目錄；以下都是佔位值，不能當作使用者已選定的時間。bundle 應放 repo 外的私人資料夾。
+
+```sh
+.venv/bin/python -m reel_publisher scan-service-prepare \
+  --directory '/absolute/private/scan-service' \
+  --first-scan 'YYYY-MM-DDTHH:MM:SS+08:00'
+```
+
+只產生 `settings.json`、plist、`enable.sh` 與 `disable.sh`，不安裝 LaunchAgent、不掃描或寄信。目錄權限 700，設定 600；存在時拒絕覆寫。使用產生 bundle 的同一 Python 環境，移動或刪除 checkout／虛擬環境前須先停用，之後重新產生。
+
+在私有 `settings.json` 的 smtp 欄位填非秘密的 `REEL_SMTP_HOST`、`REEL_EMAIL_FROM`、`REEL_EMAIL_TO`、`REEL_SMTP_USERNAME` 及明確指定的 `REEL_SMTP_KEYCHAIN_SERVICE`；可另填 `REEL_SMTP_PORT`，只支援 implicit TLS，通常為 465，不支援 STARTTLS 587。密碼不可寫入設定檔；檢查會拒絕秘密欄位。寄件服務必須另行配置，不能因為設定了名稱便假定 Keychain 已有有效憑證。
+
+```sh
+.venv/bin/python -m reel_publisher.scan_service '/absolute/private/scan-service/settings.json' --check
+```
+
+`--check` 不讀 Keychain、不連 SMTP，也不證明憑證或投遞有效。只有使用者明確核准啟用及真實通知驗證後，才可執行 bundle 的 `enable.sh --confirm-enable`。它檢查設定後呼叫 launchctl bootstrap；若失敗請查看真實狀態，不宣稱安裝完成。啟用腳本將設定複製到使用者的 Library/LaunchAgents 後載入，既有同名設定不覆寫；停用會卸載並僅刪除與該 bundle 相符的已安裝設定。啟用失敗時可能留下待檢查的設定，可用該 bundle 的 disable.sh 清理。實機登入／重啟恢復仍待驗證；本次沒有執行安裝。
+
+每分鐘啟動一個短 tick，實際掃描仍依兩天節奏；RunAtLoad 在載入時檢查是否補掃。launchd 觸發不保證每分鐘準時喚醒休眠電腦；沒有登入 session 或 Mac 關機時不執行。服務錯誤保存在 bundle 的 scan-error.log，不輸出原始 SMTP 錯誤。使用 `disable.sh` 停止這個掃描服務，不會取消任何雲端工作。
+
+## 查看掃描失敗與核對通知
+
+```sh
+.venv/bin/python -m reel_publisher scan-status
+.venv/bin/python -m reel_publisher notices
+```
+
+`scan-status` 顯示最近嘗試、成功、結果及下一次掃描。來源失去權限或不存在時記錄 failed，不消耗該次掃描時段；恢復後可補掃。沒有執行機會時不會捏造失敗或成功，最後嘗試時間可用來識別中斷。
+
+通知 unknown 需要先核對寄件服務與收件信箱。確定已投遞可標記 delivered；明確確認未寄送／未投遞且決定接受重寄後，才使用 not-delivered 將通知恢復 pending，下一個 tick 才重寄。Message-ID 不是服務端保證去重；不能只因沒有看到信就認定未寄送。
+
+```sh
+.venv/bin/python -m reel_publisher notice-resolve CANDIDATE_ID \
+  --outcome delivered --confirm-checked
+```
+
+## 未部署的雲端原型
+
+完整準備範圍與限制見 [發佈服務準備](../design/publishing-preparation.md)。原型無正式發文 CLI、無真實平台轉接器，只在測試中使用合成素材及模擬平台。通過模擬不能把 #5–#11 改為已驗收。
