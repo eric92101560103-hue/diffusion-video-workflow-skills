@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "diffusion-reels-local",
+  "version": "0.1.0",
+  "description": "本機 Reels 成片發現、對話提醒與人工文案審核；雲端及 IG 發佈尚未提供",
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "onboardingSkill": "./skills/reels-local-review/SKILL.md"
+    }
+  }
+}

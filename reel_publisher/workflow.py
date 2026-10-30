@@ -11,6 +11,9 @@ import os
 import sqlite3
 import uuid
 from zoneinfo import ZoneInfo
+from typing import Literal
+
+from .chat_notifications import ChatDelivery, ChatReport, ChatCheck
 
 from .releases import ApprovedRelease
 from .media import inspect_video
@@ -133,6 +136,13 @@ class Workflow:
                 path TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS chat_reports (
+                id TEXT PRIMARY KEY, status TEXT NOT NULL, payload TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS chat_events (
+                event_key TEXT PRIMARY KEY, payload TEXT NOT NULL, status TEXT NOT NULL,
+                report_id TEXT REFERENCES chat_reports(id)
+            );
             CREATE TABLE IF NOT EXISTS notices (
                 candidate_id TEXT PRIMARY KEY REFERENCES candidates(id),
                 status TEXT NOT NULL
@@ -205,6 +215,39 @@ class Workflow:
             raise WorkflowError('授權帳號不符；僅允許指定的 @_eric_han')
         return account
 
+    def chat_setup(self, *, first_scan: datetime) -> dict[str, object]:
+        return ChatDelivery(self).setup(first_scan)
+
+    def chat_enable(self, *, confirmed: bool = False) -> dict[str, object]:
+        return ChatDelivery(self).enable(confirmed)
+
+    def chat_disable(self) -> dict[str, object]:
+        return ChatDelivery(self).disable()
+
+    def scan_release_primary(self, *, confirmed: bool = False) -> dict[str, object]:
+        return ChatDelivery(self).release_primary(confirmed)
+
+    def assert_scan_channel(self, channel: str) -> None:
+        row = self.db.execute("SELECT value FROM settings WHERE name = 'scan_owner'").fetchone()
+        if row and str(row['value']) != channel:
+            raise WorkflowError('已有不同的主要掃描通道，請先停用及確認交接')
+
+    def chat_status(self) -> dict[str, object]:
+        return ChatDelivery(self).status()
+
+    def chat_check(self) -> ChatCheck:
+        return ChatDelivery(self).check()
+
+    def chat_import(self, path: Path, *, confirmed: bool = False) -> ChatReport | None:
+        return ChatDelivery(self).import_legacy(path, confirmed)
+
+    def chat_report(self, report_id: str) -> ChatReport:
+        return ChatDelivery(self).report(report_id)
+
+    def chat_resolve(self, report_id: str, *, outcome: Literal['received', 'not-delivered'],
+                     confirmed: bool = False) -> ChatReport:
+        return ChatDelivery(self).resolve(report_id, outcome, confirmed)
+
     def notification_status(self) -> list[NoticeStatus]:
         return [NoticeStatus(str(row['candidate_id']), str(row['status']))
                 for row in self.db.execute('SELECT * FROM notices ORDER BY candidate_id')]
@@ -236,6 +279,8 @@ class Workflow:
         lockfile = self.config.database.with_name(self.config.database.name + '.scan.lock')
         with lockfile.open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
+            self.assert_scan_channel('smtp')
+            self.db.execute("INSERT OR IGNORE INTO settings VALUES ('scan_owner', 'smtp')")
             anchor = first_scan.astimezone(ZoneInfo('Asia/Taipei'))
             stored = self.db.execute("SELECT value FROM settings WHERE name = 'scan_anchor'").fetchone()
             if stored and str(stored['value']) != anchor.isoformat():
