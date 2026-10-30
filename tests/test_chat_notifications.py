@@ -160,3 +160,33 @@ class ChatNotificationTests(WorkflowFixture):
                 self.assertNotIn('private-marker', str(error.exception))
                 self.assertEqual(workflow.chat_report(report.id).status, 'unconfirmed')
             self.assertIsNone(workflow.chat_check().notification)
+
+    def test_unstable_file_reason_is_visible_and_manual_rescan_does_not_reset_schedule(self):
+        import os
+        movie = self.video()
+        os.utime(movie, (self.now.timestamp(), self.now.timestamp()))
+        with self.workflow() as workflow:
+            self.start(workflow)
+            first = workflow.chat_check()
+            self.assertTrue(first.scanned)
+            self.assertIsNone(first.notification)
+            self.assertEqual(len(first.skipped), 1)
+            self.assertIn('穩定', first.skipped[0].reason)
+            next_scan = first.next_scan
+            self.now += timedelta(seconds=11)
+            self.assertEqual(len(workflow.scan().discovered), 1)
+            after = workflow.chat_check()
+            self.assertFalse(after.scanned)
+            self.assertIsNotNone(after.notification)
+            self.assertEqual(after.next_scan, next_scan)
+
+    def test_recovered_fault_is_not_reoffered_as_an_active_failure_after_not_delivered(self):
+        with self.workflow() as workflow:
+            self.start(workflow)
+            self.source.rmdir()
+            first = workflow.chat_check().notification
+            workflow.chat_resolve(first.id, outcome='not-delivered', confirmed=True)
+            self.source.mkdir()
+            recovered = workflow.chat_check().notification
+            self.assertEqual([item.kind for item in recovered.items], ['recovery'])
+            self.assertIsNone(workflow.chat_check().notification)

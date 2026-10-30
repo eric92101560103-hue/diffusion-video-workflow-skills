@@ -13,7 +13,7 @@ import json
 import uuid
 
 if TYPE_CHECKING:
-    from .workflow import Workflow
+    from .workflow import Workflow, SkippedFile
 
 
 @dataclass(frozen=True)
@@ -38,6 +38,7 @@ class ChatCheck:
     notification: ChatReport | None
     unconfirmed_report_ids: tuple[str, ...]
     scan_error: str | None = None
+    skipped: tuple['SkippedFile', ...] = ()
 
 
 class ChatDelivery:
@@ -178,9 +179,10 @@ class ChatDelivery:
             next_scan = datetime.fromisoformat(self._get('chat_next_scan') or '')
             scanned = self.workflow.now() >= next_scan
             error_code: str | None = None
+            skipped: tuple[SkippedFile, ...] = ()
             if scanned:
                 try:
-                    self.workflow.scan()
+                    skipped = self.workflow.scan().skipped
                 except (WorkflowError, OSError):
                     if not self.workflow.config.source.is_dir():
                         error_code = 'source_unavailable'
@@ -223,6 +225,13 @@ class ChatDelivery:
                                         ('candidate:' + candidate.id, json.dumps(asdict(item), ensure_ascii=False), 'pending'))
                         self.db.execute("UPDATE chat_events SET payload = ? WHERE event_key = ? AND status = 'pending'",
                                         (json.dumps(asdict(item), ensure_ascii=False), 'candidate:' + candidate.id))
+                active_fault = self._get('chat_fault')
+                self.db.execute("UPDATE chat_events SET status = 'obsolete' WHERE status = 'pending' "
+                                "AND event_key LIKE 'fault:%' AND (? IS NULL OR event_key != ?)",
+                                (active_fault, active_fault))
+                if active_fault:
+                    self.db.execute("UPDATE chat_events SET status = 'obsolete' WHERE status = 'pending' "
+                                    "AND event_key LIKE 'recovery:%'")
                 rows = self.db.execute("SELECT * FROM chat_events WHERE status = 'pending' ORDER BY rowid").fetchall()
                 report: ChatReport | None = None
                 if rows:
@@ -233,7 +242,7 @@ class ChatDelivery:
                     report = self.report(report_id)
             unconfirmed = tuple(str(row['id']) for row in self.db.execute(
                 "SELECT id FROM chat_reports WHERE status = 'unconfirmed' ORDER BY rowid"))
-            return ChatCheck(scanned and error_code is None, next_scan.isoformat(), report, unconfirmed, error_code)
+            return ChatCheck(scanned and error_code is None, next_scan.isoformat(), report, unconfirmed, error_code, skipped)
 
     def resolve(self, report_id: str, outcome: Literal['received', 'not-delivered'], confirmed: bool) -> ChatReport:
         from .workflow import WorkflowError

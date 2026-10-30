@@ -53,6 +53,10 @@ python3 /absolute/PLUGIN/scripts/reels.py --database /absolute/private/state.sql
 
 若已有 SMTP tick/watch 使用同一資料庫，Codex enable 會拒絕接手。先停止舊背景服務並明確核對，再執行 `scan-release-primary --confirm-stopped` 釋放通道，之後才 chat-enable；釋放會停用本機 chat-check，但保留節奏、候選及回報紀錄；不能為繞過拒絕而建立另一個資料庫。新版 tick/watch 也會拒絕在 Codex 主通道下運行。這是同一資料庫內的互斥，不能偵測另一個資料庫或舊版程式的背景服務；部署前仍須核對只有一條主要來源。
 
+## 手動立即掃描與檔案穩定性
+
+`scan` 回傳 discovered 與 skipped，每個略過項目包含原因；`chat-check` 也保留當次 skipped。影片最後修改後需穩定至少 10 秒，剛複製／匯出的檔案會略過；scanned=true 只表示掃描有執行，不保證每個檔案可入列。先告訴使用者略過原因，待檔案完成並穩定後，在相同資料庫明確執行 scan → chat-check。這樣可立即發現新候選而不重設下一個隔日掃描時間，也不必更換資料庫。定時檢查沒有新候選時仍保持安靜，不能用 skipped 當成發佈授權。
+
 ## 對話回報與確認
 
 ```sh
