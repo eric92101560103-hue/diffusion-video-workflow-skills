@@ -1,5 +1,7 @@
 # 發佈服務準備：原型與真實啟用的界線
 
+> 本頁記錄 PR #12 的歷史交付。現行通知／本機啟用條件已由[Codex 修訂](../specs/2026-10-30-codex-notification-amendment.md)取代；下文 SMTP／launchd 不再是主要流程前置。完整缺項見[框架檢查](framework-completeness-audit.md)。
+
 2026-10-30，基於 origin/main `064bfcd`；父規格 #1 不變。#2 由另一工作區處理，這裡不操作帳號、token 或真實素材。
 
 ## 本次可交付

@@ -1,5 +1,7 @@
 # 本機成片發現與排程審核
 
+> 主要掃描／待審提醒改用 Codex 對話定時任務，每兩天台北08:00。SMTP／watch／launchd 為選用且非必要前置，不要和主要任務重複啟用。[現行需求與驗收](../specs/2026-10-30-codex-notification-amendment.md)；本機可重用plugin與回報工具由 #13 交付，真實到期／恢復由 #7 驗證。
+
 目前可在本機完成候選掃描、防重複、填文案、順序及日期預覽、版本核准。雲端發佈尚未實作與部署；`approved` 只表示內容審核完成，不能解讀為已排程啟用。程式沒有正式發文命令。
 
 ## 安裝與驗證
@@ -44,7 +46,7 @@ python3 -m reel_publisher approve --versions-file /absolute/path/approved-versio
 
 明確重發時可使用 `replay /absolute/path/video.mp4 --confirm-replay` 建立新的待審候選；仍需填文案與核准。已有待審或已核准的同內容項目時會拒絕重建。
 
-## 每兩天掃描與審核提醒
+## 選用：SMTP 掃描與審核提醒（非主要流程）
 
 Email 使用 SMTP over TLS，預設連線埠 465。非秘密設定包含 `REEL_SMTP_HOST`、`REEL_SMTP_PORT`、`REEL_EMAIL_FROM`、`REEL_EMAIL_TO`、`REEL_SMTP_USERNAME`。密碼從 `REEL_SMTP_PASSWORD` 環境變數，或明確指定的 macOS Keychain 項目取得。
 
