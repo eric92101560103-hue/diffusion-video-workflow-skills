@@ -66,3 +66,29 @@ class ScanServiceTests(WorkflowFixture):
         result = subprocess.run(['sh', str(output / 'enable.sh')], capture_output=True)
         self.assertEqual(result.returncode, 2)
         self.assertFalse(self.config.database.exists())
+
+    def test_old_bundle_cannot_stop_a_different_installed_service(self):
+        import os
+        import shlex
+        import subprocess
+        from reel_publisher.scan_service import LABEL, prepare
+        output = self.root / 'bundle'
+        prepare(self.config, output, self.now)
+        installed = self.root / 'isolated-launch-agents'
+        installed.mkdir()
+        (installed / f'{LABEL}.plist').write_text('different reviewed bundle')
+        binary = self.root / 'stub-bin'
+        binary.mkdir()
+        calls = self.root / 'launchctl-calls'
+        stub = binary / 'launchctl'
+        stub.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> ' + shlex.quote(str(calls)) + '\n')
+        stub.chmod(0o700)
+        # Change only the target directory; never point a test at the real LaunchAgents.
+        script = self.root / 'isolated-disable.sh'
+        script.write_text((output / 'disable.sh').read_text().replace(
+            '$HOME/Library/LaunchAgents', str(installed)))
+        result = subprocess.run(['sh', str(script)], capture_output=True,
+                                env={**os.environ, 'PATH': str(binary) + os.pathsep + os.environ['PATH']})
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse(calls.exists(), calls.read_text() if calls.exists() else '')
+        self.assertTrue((installed / f'{LABEL}.plist').exists())

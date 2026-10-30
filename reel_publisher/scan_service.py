@@ -61,13 +61,12 @@ launchctl print "gui/$(id -u)/{LABEL}"
     disable = f'''#!/bin/sh
 set -eu
 target="$HOME/Library/LaunchAgents/{LABEL}.plist"
+[ -f "$target" ] || {{ echo '找不到此 bundle 的已安裝設定，未操作服務' >&2; exit 1; }}
+cmp -s {shlex.quote(str(plist))} "$target" || {{ echo '設定與此 bundle 不同，拒絕停用或刪除' >&2; exit 1; }}
 if launchctl print "gui/$(id -u)/{LABEL}" >/dev/null 2>&1; then
     launchctl bootout "gui/$(id -u)/{LABEL}"
 fi
-if [ -e "$target" ]; then
-    cmp -s {shlex.quote(str(plist))} "$target" || {{ echo '設定與此 bundle 不同，拒絕刪除' >&2; exit 1; }}
-    rm "$target"
-fi
+rm "$target"
 '''
     for name, content in [('enable.sh', enable), ('disable.sh', disable)]:
         path = directory / name
