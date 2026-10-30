@@ -54,8 +54,10 @@ Reels 上傳版預設為 9:16、1080 × 1920、30 fps、H.264 MP4 20 Mbps，音�
 
 ## 本機發佈工作流程工具（開發中）
 
-已可掃描候選成片、防止內容重複、填文案、預覽隔日 20:00 日期與確認版本。另提供每兩天到期掃描、SMTP 審核提醒與只讀 IG 帳號預檢入口；寄信與背景服務仍需配置及真實驗證。
+已可掃描候選成片、防止內容重複、填文案、預覽隔日 20:00 日期與確認版本。主要掃描與待審提醒採 Codex 對話定時任務，每兩天台北時間08:00，沒有新候選或新錯誤保持安靜。本機檔案需要 Mac 與 App 可用，實際到期／恢復及通知可見性仍需驗證。既有 SMTP／watch／launchd 工具保留為選用，不能同時重複啟用。
 
 目前沒有雲端發佈服務或正式發文命令，`approved` 只表示本機審核通過。安裝套件不會啟用排程、上傳影片或寄信。安裝、測試、操作與尚缺配置見 [操作說明](docs/runbooks/local-publishing-workflow.md)。
 
 新增未啟用的背景掃描準備工具，以及只能使用本機副本和模擬平台的發佈生命週期原型。原型不是雲端部署；#5–#11 的真實驗收限制、服務選型與 plugin 準備見 [發佈服務準備](docs/design/publishing-preparation.md)。
+
+現行通知決策、任務範圍與正式部署的界線見[Codex 修訂](docs/specs/2026-10-30-codex-notification-amendment.md)、[框架完整性檢查](docs/design/framework-completeness-audit.md)及[工作票](docs/plans/instagram-publishing-tickets.md)。
