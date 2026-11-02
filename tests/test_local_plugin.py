@@ -63,6 +63,7 @@ class LocalPluginTests(unittest.TestCase):
             self.assertTrue(movie.exists())
             self.assertEqual(list(published.iterdir()), [])
             self.assertFalse(invoke('chat-disable')['enabled'])
-            blocked = subprocess.run(prefix + ['instagram-check'], cwd=root, capture_output=True, text=True)
-            self.assertNotEqual(blocked.returncode, 0)
+            for arguments in (['instagram-check'], ['instagram-diagnose', '--business-id', '793333293126263']):
+                blocked = subprocess.run(prefix + arguments, cwd=root, capture_output=True, text=True)
+                self.assertEqual(blocked.returncode, 2)
             self.assertEqual(list(published.iterdir()), [])
