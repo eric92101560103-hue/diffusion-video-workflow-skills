@@ -60,13 +60,15 @@ class InstagramDiagnosticTests(unittest.TestCase):
     def test_second_stage_oauth_failure_preserves_verified_business_and_redacts_service_details(self):
         from urllib.error import HTTPError
         failure = HTTPError('https://graph.facebook.com/?access_token=fixture-secret-only', 400, 'bad', {},
-                            MetaResponse({'error': {'code': 190, 'message': 'fixture-secret-only'}}))
+                            MetaResponse({'error': {'code': 190, 'message': 'fixture-secret-only',
+                                                    'fbtrace_id': 'TRACE_test_190_001'}}))
         code, report, _ = self.invoke([{'client_business_id': '793333293126263'}, failure])
         self.assertEqual(code, 1)
         self.assertEqual(report['status'], 'request_failed')
         self.assertEqual(report['business_id'], '793333293126263')
         self.assertEqual(report['stage'], 'assigned_instagram_accounts')
         self.assertIn('190', report['error'])
+        self.assertIn('TRACE_test_190_001', report['error'])
 
     def test_changed_account_id_is_reported_for_review_without_silently_changing_configuration(self):
         code, report, _ = self.invoke([
@@ -119,3 +121,24 @@ class InstagramDiagnosticTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn('unified', report['error'])
         self.assertEqual(requests, [])
+
+    def test_keychain_wait_timeout_requests_os_confirmation_without_claiming_invalid_token(self):
+        import subprocess
+        with patch('reel_publisher.secrets.subprocess.run',
+                   side_effect=subprocess.TimeoutExpired('security', 60)):
+            code, report, requests = self.invoke([], REEL_IG_ACCESS_TOKEN='',
+                                                REEL_IG_KEYCHAIN_SERVICE='fixture-service')
+        self.assertEqual(code, 1)
+        self.assertIn('逾時', report['error'])
+        self.assertIn('macOS', report['error'])
+        self.assertEqual(requests, [])
+
+    def test_error_tracking_does_not_echo_a_secret_or_url_disguised_as_a_trace_id(self):
+        from urllib.error import HTTPError
+        for trace in ('fixture-secret-only', 'https://fixture-secret-only.example/', 'x' * 65):
+            failure = HTTPError('https://graph.facebook.com/', 400, 'bad', {},
+                                MetaResponse({'error': {'code': 190, 'fbtrace_id': trace}}))
+            code, report, _ = self.invoke([failure])
+            self.assertEqual(code, 1)
+            self.assertEqual(report['stage'], 'client_business_id')
+            self.assertNotIn('追蹤', report['error'])

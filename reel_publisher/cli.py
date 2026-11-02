@@ -62,9 +62,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.command == 'instagram-diagnose':
-            report = InstagramConnection.from_environment().diagnose(arguments.business_id, '_eric_han')
-            print(json.dumps(report, ensure_ascii=False, indent=2))
-            return 0 if report['status'] == 'identity_verified' else 1
+            diagnosis = InstagramConnection.from_environment().diagnose(arguments.business_id, '_eric_han')
+            print(json.dumps(diagnosis, ensure_ascii=False, indent=2))
+            return 0 if diagnosis['status'] == 'identity_verified' else 1
         config = Config(arguments.database, arguments.source, arguments.published)
         if arguments.command == 'scan-service-prepare':
             from .scan_service import prepare

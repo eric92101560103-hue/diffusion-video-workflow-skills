@@ -58,7 +58,7 @@ env -u REEL_IG_ACCESS_TOKEN \
 
 - 統一登入空清單：回報「未列出任何IG帳號」，不宣稱token一定無效，也不直接查系統用戶當IG。
 - 找不到唯一符合配置的IG帳號／缺少欄位／回應格式異常：拒絕身分核對；不以另一帳號或單一相似username替代。
-- HTTP失敗：只附HTTP及Meta數字錯誤碼／子碼，不回傳可能含憑證的原始錯誤訊息、網址或payload。
+- HTTP失敗：只附HTTP、Meta數字錯誤碼／子碼及通過字元／長度／憑證比對的fbtrace_id；不回傳原始錯誤訊息、網址或payload。
 - 網路／解碼失敗：回報未取得可核對結果；所有錯誤都不執行任何正式發佈。
 
 HTTP呼叫只使用Authorization header，禁止redirect，token不放入查詢網址。統一登入目前最多核對一頁100個資產；未在本頁找到時保守阻擋，不宣稱完整帳號清單為空。未實作OAuth交換、token更新、App Review判定或即時權限擴張。

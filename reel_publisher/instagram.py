@@ -151,18 +151,23 @@ class InstagramConnection:
                 data = json.loads(response.read(1024 * 1024))
         except HTTPError as error:
             codes: list[str] = []
+            trace = ''
             try:
                 failure = json.loads(error.read(65536))
                 detail = failure.get('error') if isinstance(failure, dict) else None
                 if isinstance(detail, dict):
                     codes = [str(detail[key]) for key in ('code', 'error_subcode')
                              if type(detail.get(key)) is int]
+                    candidate = detail.get('fbtrace_id')
+                    if (isinstance(candidate, str) and re.fullmatch(r'[A-Za-z0-9_-]{1,64}', candidate)
+                            and self.token not in candidate):
+                        trace = f'，追蹤 {candidate}'
             except (OSError, ValueError):
                 pass
             finally:
                 error.close()
             diagnostic = f'，Meta {"/".join(codes)}' if codes else ''
-            raise ValueError(f'IG 帳號檢查失敗（HTTP {error.code}{diagnostic}）；請核對登入、權限與資產授權，未執行發佈') from None
+            raise ValueError(f'IG 帳號檢查失敗（HTTP {error.code}{diagnostic}{trace}）；請核對登入、權限與資產授權，未執行發佈') from None
         except (URLError, TimeoutError, OSError, ValueError):
             raise ValueError('IG 帳號檢查未取得可核對結果；未執行任何發佈') from None
         return data
