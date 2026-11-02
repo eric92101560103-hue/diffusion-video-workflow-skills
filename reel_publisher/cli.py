@@ -54,11 +54,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     resolve.add_argument('--confirm-checked', action='store_true', required=True)
     commands.add_parser('notices', help='查看通知結果，unknown 不自動重寄')
     commands.add_parser('instagram-check', help='只讀核對授權帳號，不代表已取得發佈權限')
+    diagnose = commands.add_parser('instagram-diagnose', help='只讀核對統一登入的商家及 IG；不建立本機狀態')
+    diagnose.add_argument('--business-id', required=True)
     service = commands.add_parser('scan-service-prepare', help='只產生未啟用的本機背景掃描設定')
     service.add_argument('--directory', type=Path, required=True)
     service.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
     arguments = parser.parse_args(argv)
     try:
+        if arguments.command == 'instagram-diagnose':
+            report = InstagramConnection.from_environment().diagnose(arguments.business_id, '_eric_han')
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0 if report['status'] == 'identity_verified' else 1
         config = Config(arguments.database, arguments.source, arguments.published)
         if arguments.command == 'scan-service-prepare':
             from .scan_service import prepare

@@ -28,6 +28,32 @@
 
 成功輸出仍是 publishing_permission=not_verified、published=false。這是帳號預檢，不是發佈成功或雲端已啟用。
 
+## 統一登入分階段診斷
+
+`instagram-diagnose --business-id BUSINESS_ID`先用同一憑證核對`me?fields=client_business_id`，商家符合才查`me/assigned_instagram_accounts?fields=id,username&limit=100`。此命令在開啟Workflow之前執行，不建立或修改候選資料庫，不掃描影片、不發佈、不調整配置。
+
+已撤銷曝光憑證、完成重新授權並更新指定鑰匙圈項目後，才執行以下命令。環境憑證優先於鑰匙圈，因此用`env -u`排除殘留環境憑證；命令不包含任何秘密：
+
+```sh
+env -u REEL_IG_ACCESS_TOKEN \
+  REEL_IG_LOGIN=unified \
+  REEL_IG_API_VERSION=v26.0 \
+  REEL_IG_ACCOUNT_ID=17841403997461963 \
+  REEL_IG_KEYCHAIN_SERVICE=EricReelsPublisher.Instagram \
+  .venv/bin/python -m reel_publisher instagram-diagnose --business-id 793333293126263
+```
+
+| status | 意義及下一個核對點 |
+| --- | --- |
+| identity_verified | 商家、已配置IG ID與目標username均符合；仍未驗證發佈權限 |
+| business_mismatch | 回傳的商家不符合，停止後續IG查詢；核對本次登入所選商家 |
+| no_accounts_in_response | 商家核對通過，但本頁沒有IG帳號；不是token必然無效的證明 |
+| account_id_mismatch | API本頁找到目標username，但ID不同；observed_account供人工核對，不自動覆寫配置 |
+| account_not_uniquely_identified／username_mismatch | 未能唯一核對原配置身分；保守阻擋，不改用其他帳號 |
+| request_failed | stage指出商家或IG清單階段；只保留已核實的商家與安全錯誤診斷，不輸出原始回應 |
+
+只有`identity_verified`退出碼為0；其他結果為1。輸出固定保留`publishing_permission=not_verified`、`published=false`。`accounts_page_complete=false`表示還有後續頁面；不跟隨可能包含憑證的paging.next網址，也不把第一頁結果當作完整資產清單。診斷不測試發佈權限、不代表帳號健康狀態，也不能直接關閉#2。
+
 ## 可理解的阻擋
 
 - 統一登入空清單：回報「未列出任何IG帳號」，不宣稱token一定無效，也不直接查系統用戶當IG。
