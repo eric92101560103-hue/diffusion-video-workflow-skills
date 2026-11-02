@@ -22,7 +22,7 @@ IG資產「連結的資產」頁顯示沒有連結的資產；商家導覽URL中
 
 ## 新憑證真實只讀結果
 
-以`env -u REEL_IG_ACCESS_TOKEN`排除舊環境憑證，指定`EricReelsPublisher.Instagram`、account=`17841403997461963`，從登入鑰匙圈讀取使用者更新的項目。macOS權限不足的受限執行曾失敗；改以明確授權的指定項目讀取後完成以下GET，未讀取其他鑰匙圈項目。
+以`env -u REEL_IG_ACCESS_TOKEN`排除舊環境憑證，指定`EricReelsPublisher.Instagram`、account=`17841403997461963`，從登入鑰匙圈讀取使用者更新的項目。受限執行曾未能讀取；在明確授權的執行環境讀取指定項目後完成以下GET，未據此宣稱已證實第一次失敗的OS根因，也未讀取其他鑰匙圈項目。
 
 - `me?fields=client_business_id`：`793333293126263`，符合預期商家。
 - `me/assigned_instagram_accounts?fields=id,username&limit=100`：空data、無後續頁面，status=`no_accounts_in_response`。
