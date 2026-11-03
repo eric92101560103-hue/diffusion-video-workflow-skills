@@ -36,6 +36,7 @@ class InstagramTest:
     approved_at: str | None
     next_check_at: str | None
     reason: str | None
+    scheduled_for: str | None
     timing: str = 'immediately_after_explicit_approval'
 
 
@@ -43,21 +44,32 @@ class InstagramTests:
     def __init__(self, workflow: 'Workflow') -> None:
         self.workflow = workflow
         self.db = workflow.db
-        self.db.execute('''CREATE TABLE IF NOT EXISTS instagram_tests (
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            self.db.execute('''CREATE TABLE IF NOT EXISTS instagram_tests (
             id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL REFERENCES candidates(id),
             revision INTEGER NOT NULL, fingerprint TEXT NOT NULL, path TEXT NOT NULL,
             caption TEXT NOT NULL, page_id TEXT NOT NULL, account_id TEXT NOT NULL,
             version TEXT NOT NULL, status TEXT NOT NULL, container_id TEXT, media_id TEXT,
             permalink TEXT, approved_at TEXT, next_check_at TEXT, reason TEXT,
             processing_started_at TEXT, UNIQUE(candidate_id, revision)
-        )''')
+            )''')
+            columns = {str(row['name']) for row in self.db.execute('PRAGMA table_info(instagram_tests)')}
+            if 'scheduled_for' not in columns:
+                self.db.execute('ALTER TABLE instagram_tests ADD COLUMN scheduled_for TEXT')
+            self.db.execute('COMMIT')
+        except BaseException:
+            if self.db.in_transaction:
+                self.db.execute('ROLLBACK')
+            raise
         self.directory = workflow.config.database.parent / 'instagram-test-media'
 
     def get(self, job_id: str) -> InstagramTest:
         row = self.db.execute('SELECT * FROM instagram_tests WHERE id = ?', (job_id,)).fetchone()
         if row is None:
             raise ValueError('找不到單支 IG 測試')
-        return InstagramTest(**{name: row[name] for name in InstagramTest.__dataclass_fields__ if name != 'timing'})
+        return InstagramTest(**{name: row[name] for name in InstagramTest.__dataclass_fields__ if name != 'timing'},
+                             timing='at_approved_time' if row['scheduled_for'] else 'immediately_after_explicit_approval')
 
     def _check(self, job: InstagramTest) -> None:
         candidate = self.workflow.get(job.candidate_id)
@@ -97,6 +109,36 @@ class InstagramTests:
                     self.db.execute('ROLLBACK')
                 raise
             return self.get(job_id)
+
+    def schedule(self, job_id: str, due: datetime, confirmed: bool) -> InstagramTest:
+        if not confirmed or due.tzinfo is None or not self.workflow.now() < due <= self.workflow.now() + timedelta(days=1):
+            raise ValueError('單支驗收需明確核准含時區且未來24小時內的發佈時間')
+        with self._lock():
+            job = self.get(job_id)
+            if job.status == 'scheduled' and job.scheduled_for == due.isoformat():
+                return job
+            if job.status != 'awaiting_approval':
+                raise ValueError('只有待核准的單支驗收可設定時間；修改需先取消並重新審核')
+            try:
+                self.db.execute('BEGIN IMMEDIATE')
+                self._check(job)
+                self.db.execute("UPDATE candidates SET status = 'test_in_progress', approval_revision = NULL WHERE id = ?",
+                                (job.candidate_id,))
+                self.db.execute("UPDATE instagram_tests SET status = 'scheduled', scheduled_for = ?, approved_at = ?, "
+                                "next_check_at = ? WHERE id = ?", (due.isoformat(), self.workflow.now().isoformat(),
+                                (due - timedelta(minutes=10)).isoformat(), job.id))
+                self.db.execute('COMMIT')
+            except BaseException:
+                if self.db.in_transaction:
+                    self.db.execute('ROLLBACK')
+                raise
+            return self.get(job.id)
+
+    def _cutoff(self, job: InstagramTest) -> datetime:
+        anchor = job.scheduled_for or job.approved_at
+        if not anchor:
+            raise ValueError('缺少可核對的核准時間')
+        return datetime.fromisoformat(anchor) + timedelta(minutes=30)
 
     def prepare(self, candidate_id: str, revision: int, page_id: str, version: str) -> InstagramTest:
         if not re.fullmatch(r'[0-9]{1,64}', page_id) or not re.fullmatch(r'v[0-9]+\.0', version):
@@ -139,20 +181,27 @@ class InstagramTests:
         return self.get(job_id)
 
     def publish(self, job_id: str, publisher: FacebookReels, confirmed: bool) -> InstagramTest:
-        if not confirmed:
-            raise ValueError('需明確核准此單支測試的影片、文案及立即發佈時間')
         with self._lock():
             job = self.get(job_id)
+            ready_checked = False
+            if not confirmed and not (job.scheduled_for and job.approved_at):
+                raise ValueError('需明確核准此單支測試的影片、文案及發佈時間')
             if job.status in ('published', 'unknown', 'blocked', 'cancelled'):
                 return job
             if job.status in ('creating', 'uploading', 'publishing'):
                 return self._save(job.id, 'unknown' if job.status == 'publishing' else 'blocked',
                                   '先前操作中斷；停止重送，需人工核對')
+            if job.scheduled_for:
+                due = datetime.fromisoformat(job.scheduled_for)
+                if self.workflow.now() < due - timedelta(minutes=10):
+                    return job
+                if job.status == 'ready' and self.workflow.now() < due:
+                    return job
             self._check(job)
             if (publisher.account_id, publisher.page_id, publisher.version) != (job.account_id, job.page_id, job.version):
                 raise ValueError('發佈配置與審核快照不符')
-            if job.approved_at and self.workflow.now() >= datetime.fromisoformat(job.approved_at) + timedelta(minutes=30):
-                return self._save(job.id, 'blocked', '立即發佈核准已超過 30 分鐘，需重新審核')
+            if job.approved_at and self.workflow.now() >= self._cutoff(job):
+                return self._save(job.id, 'blocked', '已超過核准發佈時間30分鐘，需重新審核')
             self.workflow.check_instagram(publisher)
             if job.status == 'awaiting_approval':
                 try:
@@ -168,7 +217,7 @@ class InstagramTests:
                         self.db.execute('ROLLBACK')
                     raise
                 job = self.get(job.id)
-            if job.status == 'approved':
+            if job.status in ('approved', 'scheduled'):
                 self._save(job.id, 'creating')
                 try:
                     target = self.directory / f'{job.id}.media'
@@ -214,11 +263,28 @@ class InstagramTests:
                 if status != 'FINISHED':
                     return self._save(job.id, 'unknown' if status == 'PUBLISHED' else 'blocked',
                                       '平台狀態需人工核對；停止正式發佈')
+                self._save(job.id, 'ready')
+                job = self.get(job.id)
+                ready_checked = True
+            if job.status == 'ready':
+                if job.scheduled_for and self.workflow.now() < datetime.fromisoformat(job.scheduled_for):
+                    self.db.execute('UPDATE instagram_tests SET next_check_at = ? WHERE id = ?',
+                                    (job.scheduled_for, job.id))
+                    return self.get(job.id)
+                if not ready_checked:
+                    assert job.container_id is not None
+                    try:
+                        status = publisher.status(job.container_id)
+                    except Exception:
+                        return self._save(job.id, 'blocked', '無法重新核對媒體就緒狀態，未送出正式發佈')
+                    if status != 'FINISHED':
+                        return self._save(job.id, 'unknown' if status == 'PUBLISHED' else 'blocked',
+                                          '發佈時媒體狀態需人工核對，停止正式發佈')
                 self._check(job)
                 current = self.get(job.id)
-                if (not current.approved_at or self.workflow.now() >=
-                        datetime.fromisoformat(current.approved_at) + timedelta(minutes=30)):
-                    return self._save(job.id, 'blocked', '立即發佈核准已超過 30 分鐘，需重新審核')
+                if not current.approved_at or self.workflow.now() >= self._cutoff(current):
+                    return self._save(job.id, 'blocked', '已超過核准發佈時間30分鐘，需重新審核')
+                assert job.container_id is not None
                 self._save(job.id, 'publishing')
                 try:
                     media_id = publisher.publish(job.container_id)

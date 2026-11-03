@@ -65,7 +65,9 @@ class LocalPluginTests(unittest.TestCase):
             self.assertFalse(invoke('chat-disable')['enabled'])
             for arguments in (['instagram-check'], ['instagram-diagnose', '--business-id', '793333293126263'],
                               ['instagram-test-prepare', 'unapproved', '--revision', '1', '--page-id', '1424349244092893', '--api-version', 'v26.0'],
-                              ['instagram-test-publish', 'unapproved', '--confirm-publish-now']):
+                              ['instagram-test-publish', 'unapproved', '--confirm-publish-now'],
+                              ['instagram-test-schedule', 'unapproved', '--at', '2099-01-01T20:00:00+08:00', '--confirm-schedule'],
+                              ['instagram-test-run', 'unapproved']):
                 blocked = subprocess.run(prefix + arguments, cwd=root, capture_output=True, text=True)
                 self.assertEqual(blocked.returncode, 2)
             self.assertEqual(list(published.iterdir()), [])

@@ -90,6 +90,12 @@ def main(argv: Sequence[str] | None = None, *, local_only: bool = False) -> int:
         test_publish = commands.add_parser('instagram-test-publish', help='明確核准此快照立即真實發佈；不建立持續排程')
         test_publish.add_argument('id')
         test_publish.add_argument('--confirm-publish-now', action='store_true', required=True)
+        test_schedule = commands.add_parser('instagram-test-schedule', help='核准單支內容及指定時間；只存本機狀態，不建立定時任務')
+        test_schedule.add_argument('id')
+        test_schedule.add_argument('--at', type=datetime.fromisoformat, required=True)
+        test_schedule.add_argument('--confirm-schedule', action='store_true', required=True)
+        test_run = commands.add_parser('instagram-test-run', help='推進已明確核准的單支排程；不提早正式發佈')
+        test_run.add_argument('id')
         service = commands.add_parser('scan-service-prepare', help='只產生未啟用的本機背景掃描設定')
         service.add_argument('--directory', type=Path, required=True)
         service.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
@@ -182,13 +188,18 @@ def main(argv: Sequence[str] | None = None, *, local_only: bool = False) -> int:
                 output = asdict(workflow.instagram_test_get(arguments.id))
             elif arguments.command == 'instagram-test-cancel':
                 output = asdict(workflow.instagram_test_cancel(arguments.id, confirmed=arguments.confirm_cancel))
-            elif arguments.command == 'instagram-test-publish':
+            elif arguments.command == 'instagram-test-schedule':
+                output = asdict(workflow.instagram_test_schedule(arguments.id, arguments.at, confirmed=arguments.confirm_schedule))
+            elif arguments.command in ('instagram-test-publish', 'instagram-test-run'):
                 job = workflow.instagram_test_get(arguments.id)
+                if arguments.command == 'instagram-test-run' and not (job.scheduled_for and job.approved_at):
+                    raise WorkflowError('此單支驗收尚未核准指定時間，不能由定時任務發佈')
                 publisher = FacebookReels(InstagramConnection.from_environment(), job.page_id)
-                publish_result = workflow.instagram_test_publish(job.id, publisher, confirmed=arguments.confirm_publish_now)
+                publish_result = (workflow.instagram_test_run(job.id, publisher) if arguments.command == 'instagram-test-run'
+                                  else workflow.instagram_test_publish(job.id, publisher, confirmed=arguments.confirm_publish_now))
                 output = asdict(publish_result)
                 print(json.dumps(output, ensure_ascii=False, indent=2))
-                return 0 if publish_result.status in ('processing', 'published') else 1
+                return 0 if publish_result.status in ('scheduled', 'ready', 'processing', 'published') else 1
             else:
                 raise WorkflowError('不支援的操作')
         print(json.dumps(output, ensure_ascii=False, indent=2))

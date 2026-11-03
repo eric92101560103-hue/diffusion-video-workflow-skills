@@ -226,6 +226,12 @@ class Workflow:
     def instagram_test_cancel(self, job_id: str, *, confirmed: bool = False) -> InstagramTest:
         return InstagramTests(self).cancel(job_id, confirmed)
 
+    def instagram_test_schedule(self, job_id: str, due: datetime, *, confirmed: bool = False) -> InstagramTest:
+        return InstagramTests(self).schedule(job_id, due, confirmed)
+
+    def instagram_test_run(self, job_id: str, publisher: FacebookReels) -> InstagramTest:
+        return InstagramTests(self).publish(job_id, publisher, False)
+
     def instagram_test_publish(self, job_id: str, publisher: FacebookReels, *, confirmed: bool = False) -> InstagramTest:
         return InstagramTests(self).publish(job_id, publisher, confirmed)
 

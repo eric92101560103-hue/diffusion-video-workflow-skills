@@ -1,6 +1,6 @@
 # 單支 Instagram 發佈驗收
 
-這是 #2 的人工驗收入口，不是每兩天／20:00 的持續排程，也不啟用現有本機 plugin 的正式發文能力。僅支援已核對的 Facebook Login 路線及指定的 @_eric_han。真實帳號預檢已成功；正式發佈能力仍需具體影片驗收。
+這是 #2 的單支驗收入口，可明確核准立即發佈或未來24小時內的一次發佈，不是持續雲端排程，也不啟用現有本機 plugin 的正式發文能力。僅支援已核對的 Facebook Login 路線及指定的 @_eric_han。真實帳號預檢已成功；正式發佈能力仍需具體影片驗收。
 
 ## 先準備可審核結果
 
@@ -20,6 +20,25 @@
 
 憑證配置沿用[只讀預檢](ig-readonly-preflight.md)，使用者的 Facebook 憑證存入指定登入鑰匙圈。工具只向指定專頁讀取其連結與專頁憑證，並以專頁憑證再核對 IG；專頁憑證只保留在記憶體，不保存至工作紀錄或輸出。
 
+### 指定一次發佈時間
+
+使用者核准具體影片、文案及絕對時間後，先持久保存時區與核准，不呼叫平台：
+
+```sh
+.venv/bin/python -m reel_publisher <共同路徑參數> instagram-test-schedule TEST_ID \
+  --at '2026-11-03T20:00:00+08:00' --confirm-schedule
+```
+
+排程會保留此候選避免文案被並行修改；相同時間重送只回傳原工作，不覆寫時間。更改時間需取消並重新審核。`scheduled_for`為所核准的絕對時間，`timing=at_approved_time`。
+
+用Codex Scheduled在預定時間前10分鐘及預定時間分別呼叫`instagram-test-run TEST_ID`，使用與下方立即發佈相同的環境與路徑參數。此命令只執行已有持久時間核准的工作，不接受尚未核准項目。過早執行不呼叫平台；準備期間建立／上傳與輪詢，就緒後保存`ready`並等待。到指定時間再次確認平台仍為FINISHED後才發佈，絕不因準備就緒而提前發佈。
+
+Scheduled是執行此工具的觸發器，不是Instagram原生排程收據。必須另以自動化管理工具建立並核對定時任務；只執行schedule命令不代表定時任務已建立。使用固定版本的本機執行套件與同一工作ID，不從其他checkout切換狀態。Mac、App、檔案、網路與鑰匙圈須在執行時可用；延遲／錯過時不得越過指定時間後30分鐘的上限。開始前需核對憑證效期涵蓋指定時段，不能拿即將到期的測試憑證宣稱已可發佈。[OpenAI Scheduled說明](https://learn.chatgpt.com/docs/automations?surface=app)。
+
+原每兩日掃描仍只發現成片及提醒填文案；可加入這份已核准單支工作的只讀狀態檢查，不自動核准其他影片，也不以掃描觸發正式發文。
+
+### 立即發佈驗收
+
 ```sh
 env -u REEL_IG_ACCESS_TOKEN \
   REEL_IG_LOGIN=facebook \
@@ -34,6 +53,8 @@ env -u REEL_IG_ACCESS_TOKEN \
 
 | 回傳 status | 操作者下一步 |
 | --- | --- |
+| scheduled | 已保存單支內容與時間核准；尚待外部Scheduled觸發；不是Instagram已接受排程 |
+| ready | 已上傳且媒體已就緒；等待指定時間，尚未正式發佈 |
 | processing | 到 `next_check_at` 後才對同一 TEST_ID 執行相同命令；不建立另一份工作。每分鐘最多查一次，處理上限五分鐘 |
 | published | 已保存正式媒體 ID；可取得時另存 permalink。重跑只回傳原收據，不再次發文 |
 | blocked | 準備／上傳／處理未確認完成或核准逾時；不自動重送，先檢查 reason |

@@ -293,3 +293,70 @@ class InstagramPublishTests(WorkflowFixture):
             result = workflow.instagram_test_publish(job.id, self.publisher(), confirmed=True)
             self.assertEqual(result.status, 'blocked')
             self.assertEqual(sum(p.endswith('/media_publish') for _, p, _ in self.meta.posts), 0)
+
+    def test_approved_schedule_prepares_early_but_never_publishes_before_exact_time(self):
+        from datetime import datetime, timezone
+        due = datetime(2026, 11, 1, 12, tzinfo=timezone.utc)
+        with self.workflow() as workflow:
+            job = self.prepared(workflow)
+            scheduled = workflow.instagram_test_schedule(job.id, due, confirmed=True)
+            self.assertEqual((scheduled.status, scheduled.scheduled_for), ('scheduled', '2026-11-01T12:00:00+00:00'))
+            result = workflow.instagram_test_run(job.id, self.publisher())
+            self.assertEqual(result.status, 'scheduled')
+            self.assertEqual(self.meta.posts, [])
+            self.now = datetime(2026, 11, 1, 11, 50, tzinfo=timezone.utc)
+            result = workflow.instagram_test_run(job.id, self.publisher())
+            self.assertEqual(result.status, 'ready')
+            self.assertEqual(sum(p.endswith('/media_publish') for _, p, _ in self.meta.posts), 0)
+        with self.workflow() as workflow:
+            self.now = due
+            result = workflow.instagram_test_run(job.id, self.publisher())
+            self.assertEqual((result.status, result.media_id), ('published', '888000'))
+
+    def test_prepared_scheduled_container_is_checked_again_at_publish_time(self):
+        from datetime import datetime, timezone
+        due = datetime(2026, 11, 1, 12, tzinfo=timezone.utc)
+        with self.workflow() as workflow:
+            job = self.prepared(workflow)
+            workflow.instagram_test_schedule(job.id, due, confirmed=True)
+            self.now = datetime(2026, 11, 1, 11, 50, tzinfo=timezone.utc)
+            self.assertEqual(workflow.instagram_test_run(job.id, self.publisher()).status, 'ready')
+            self.now = due
+            self.meta.ready = 'PUBLISHED'
+            result = workflow.instagram_test_run(job.id, self.publisher())
+            self.assertEqual(result.status, 'unknown')
+            self.assertEqual(sum(p.endswith('/media_publish') for _, p, _ in self.meta.posts), 0)
+
+    def test_cli_schedule_records_exact_time_and_run_rejects_an_unapproved_job(self):
+        from contextlib import redirect_stdout, redirect_stderr
+        from datetime import datetime, timedelta, timezone
+        from io import StringIO
+        from reel_publisher.cli import main
+        with self.workflow() as workflow:
+            job = self.prepared(workflow)
+        prefix = ['--database', str(self.config.database), '--source', str(self.source), '--published', str(self.archive)]
+        output, errors = StringIO(), StringIO()
+        with redirect_stdout(output), redirect_stderr(errors), patch.dict('os.environ', {}, clear=True):
+            code = main(prefix + ['instagram-test-run', job.id])
+        self.assertEqual(code, 1)
+        self.assertIn('尚未核准', errors.getvalue())
+        due = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        output = StringIO()
+        with redirect_stdout(output):
+            code = main(prefix + ['instagram-test-schedule', job.id, '--at', due, '--confirm-schedule'])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(output.getvalue())['scheduled_for'], due)
+        self.assertEqual(self.meta.posts, [])
+
+    def test_schedule_refuses_missing_confirmation_and_expires_without_sending_a_post(self):
+        from datetime import datetime, timedelta, timezone
+        due = datetime(2026, 11, 1, 12, tzinfo=timezone.utc)
+        with self.workflow() as workflow:
+            job = self.prepared(workflow)
+            with self.assertRaises(ValueError):
+                workflow.instagram_test_schedule(job.id, due)
+            workflow.instagram_test_schedule(job.id, due, confirmed=True)
+            self.now = due + timedelta(minutes=30)
+            result = workflow.instagram_test_run(job.id, self.publisher())
+            self.assertEqual(result.status, 'blocked')
+            self.assertEqual(self.meta.posts, [])
