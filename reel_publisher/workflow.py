@@ -18,6 +18,8 @@ from .chat_notifications import ChatDelivery, ChatReport, ChatCheck
 from .releases import ApprovedRelease
 from .media import inspect_video
 from .instagram import Account, InstagramAccountReader
+from .instagram_publishing import FacebookReels
+from .instagram_test import InstagramTest, InstagramTests
 from .notifications import Notice, NoticeStatus, Notifier
 
 
@@ -215,6 +217,18 @@ class Workflow:
             raise WorkflowError('授權帳號不符；僅允許指定的 @_eric_han')
         return account
 
+    def instagram_test_prepare(self, candidate_id: str, revision: int, *, page_id: str, version: str) -> InstagramTest:
+        return InstagramTests(self).prepare(candidate_id, revision, page_id, version)
+
+    def instagram_test_get(self, job_id: str) -> InstagramTest:
+        return InstagramTests(self).get(job_id)
+
+    def instagram_test_cancel(self, job_id: str, *, confirmed: bool = False) -> InstagramTest:
+        return InstagramTests(self).cancel(job_id, confirmed)
+
+    def instagram_test_publish(self, job_id: str, publisher: FacebookReels, *, confirmed: bool = False) -> InstagramTest:
+        return InstagramTests(self).publish(job_id, publisher, confirmed)
+
     def chat_setup(self, *, first_scan: datetime) -> dict[str, object]:
         return ChatDelivery(self).setup(first_scan)
 
@@ -332,11 +346,14 @@ class Workflow:
         if candidate.status not in ('candidate', 'approved'):
             raise WorkflowError('目前狀態不能修改文案')
         if caption != candidate.caption:
-            self.db.execute(
+            updated = self.db.execute(
                 "UPDATE candidates SET caption = ?, revision = revision + 1, "
-                "status = 'candidate', approval_revision = NULL WHERE id = ?",
-                (caption, candidate_id),
+                "status = 'candidate', approval_revision = NULL WHERE id = ? AND revision = ? "
+                "AND status IN ('candidate', 'approved')",
+                (caption, candidate_id, candidate.revision),
             )
+            if updated.rowcount != 1:
+                raise WorkflowError('候選狀態或版本已改變，請重新查看；文案未修改')
         return self.get(candidate_id)
 
     def _check_video(self, candidate: Candidate) -> None:
@@ -463,7 +480,7 @@ class Workflow:
         try:
             self.db.execute('BEGIN IMMEDIATE')
             pending = self.db.execute(
-                "SELECT id FROM candidates WHERE fingerprint = ? AND status IN ('candidate', 'approved')",
+                "SELECT id FROM candidates WHERE fingerprint = ? AND status IN ('candidate', 'approved', 'test_in_progress')",
                 (digest,),
             ).fetchone()
             if pending:

@@ -12,6 +12,7 @@ import time
 
 from .workflow import Config, Workflow, WorkflowError
 from .instagram import InstagramConnection
+from .instagram_publishing import FacebookReels
 from .notifications import SMTPNotifier
 
 
@@ -76,6 +77,19 @@ def main(argv: Sequence[str] | None = None, *, local_only: bool = False) -> int:
         commands.add_parser('instagram-check', help='只讀核對授權帳號，不代表已取得發佈權限')
         diagnose = commands.add_parser('instagram-diagnose', help='只讀核對統一登入的商家及 IG；不建立本機狀態')
         diagnose.add_argument('--business-id', required=True)
+        test_prepare = commands.add_parser('instagram-test-prepare', help='準備單支測試審核快照及私有副本；不上傳')
+        test_prepare.add_argument('id')
+        test_prepare.add_argument('--revision', type=int, required=True)
+        test_prepare.add_argument('--page-id', required=True)
+        test_prepare.add_argument('--api-version', required=True)
+        test_get = commands.add_parser('instagram-test-get', help='查看單支測試審核快照及持久結果')
+        test_get.add_argument('id')
+        test_cancel = commands.add_parser('instagram-test-cancel', help='取消尚未正式發佈的測試；不刪除媒體')
+        test_cancel.add_argument('id')
+        test_cancel.add_argument('--confirm-cancel', action='store_true', required=True)
+        test_publish = commands.add_parser('instagram-test-publish', help='明確核准此快照立即真實發佈；不建立持續排程')
+        test_publish.add_argument('id')
+        test_publish.add_argument('--confirm-publish-now', action='store_true', required=True)
         service = commands.add_parser('scan-service-prepare', help='只產生未啟用的本機背景掃描設定')
         service.add_argument('--directory', type=Path, required=True)
         service.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
@@ -161,6 +175,20 @@ def main(argv: Sequence[str] | None = None, *, local_only: bool = False) -> int:
             elif arguments.command == 'instagram-check':
                 output = {'account': asdict(workflow.check_instagram(InstagramConnection.from_environment())),
                           'publishing_permission': 'not_verified', 'published': False}
+            elif arguments.command == 'instagram-test-prepare':
+                output = asdict(workflow.instagram_test_prepare(arguments.id, arguments.revision,
+                                page_id=arguments.page_id, version=arguments.api_version))
+            elif arguments.command == 'instagram-test-get':
+                output = asdict(workflow.instagram_test_get(arguments.id))
+            elif arguments.command == 'instagram-test-cancel':
+                output = asdict(workflow.instagram_test_cancel(arguments.id, confirmed=arguments.confirm_cancel))
+            elif arguments.command == 'instagram-test-publish':
+                job = workflow.instagram_test_get(arguments.id)
+                publisher = FacebookReels(InstagramConnection.from_environment(), job.page_id)
+                publish_result = workflow.instagram_test_publish(job.id, publisher, confirmed=arguments.confirm_publish_now)
+                output = asdict(publish_result)
+                print(json.dumps(output, ensure_ascii=False, indent=2))
+                return 0 if publish_result.status in ('processing', 'published') else 1
             else:
                 raise WorkflowError('不支援的操作')
         print(json.dumps(output, ensure_ascii=False, indent=2))

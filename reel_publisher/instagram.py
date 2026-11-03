@@ -105,6 +105,21 @@ class InstagramConnection:
             raise ValueError('授權帳號 ID 與配置不符')
         return Account(data['id'], data['username'])
 
+    def page_connection(self, page_id: str) -> 'InstagramConnection':
+        """Resolve only the explicitly configured Page; never persist its credential."""
+        if self.login != 'facebook' or not re.fullmatch(r'[0-9]+', page_id):
+            raise ValueError('單支發佈測試需 Facebook 登入與指定專頁編號')
+        page = self._get_json('graph.facebook.com',
+                              f'{page_id}?fields=id,instagram_business_account,access_token')
+        linked = page.get('instagram_business_account') if isinstance(page, dict) else None
+        if (not isinstance(page, dict) or page.get('id') != page_id
+                or not isinstance(linked, dict) or linked.get('id') != self.account_id):
+            raise ValueError('指定專頁未能核對連結的 IG 帳號')
+        token = page.get('access_token')
+        if not isinstance(token, str) or not token or any(c.isspace() for c in token):
+            raise ValueError('指定專頁沒有可用的發佈憑證')
+        return InstagramConnection(self.account_id, self.version, token, 'facebook')
+
     def diagnose(self, business_id: str, username: str) -> dict[str, object]:
         if self.login != 'unified' or not business_id.isascii() or not business_id.isdecimal():
             raise ValueError('此診斷需 unified 登入與數字商家編號')

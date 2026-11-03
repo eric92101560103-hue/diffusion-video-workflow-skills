@@ -53,7 +53,9 @@ Graph API Explorer的Configurations模式已顯示這份配置、用戶存取憑
 
 結論：Facebook Login用戶憑證可存取指定專頁與IG，無須為此次讀取再新增廣告／商家／訊息權限。專頁清單列舉與直接存取的行為不同，原因尚未確定；原Unified Login SUAT的失敗原因也尚未證實，不能把替代路線成功描述為已修復SUAT。
 
-已交接使用者在登入鑰匙圈另外保存`EricReelsPublisher.Facebook`、account=`17841403997461963`，保留原SUAT項目。尚待儲存確認及本機`REEL_IG_LOGIN=facebook`預檢；憑證有效期與長期更新方式也尚未驗收。沒有建立媒體容器、上傳影片或呼叫`media_publish`。
+使用者已確認將新憑證另存登入鑰匙圈`EricReelsPublisher.Facebook`、account=`17841403997461963`，保留原SUAT項目。排除環境憑證後，以本機`REEL_IG_LOGIN=facebook`執行`instagram-check`成功，回傳相同IG ID／username、`publishing_permission=not_verified`及`published=false`。
+
+另以指定專頁路徑在記憶體取得專頁憑證、再以此憑證核對IG，讀取`content_publishing_limit?fields=quota_usage,config`成功：當次quota_usage=0、quota_total=100、quota_duration=86400。只輸出數字、專頁及IG身分，不輸出或保存專頁憑證。這證明讀取此發佈相關端點可用，仍不等於正式發佈成功。憑證有效期與長期更新方式尚未驗收。沒有建立媒體容器、上傳影片或呼叫`media_publish`。
 
 ## 官方依據
 
@@ -63,4 +65,6 @@ Graph API Explorer的Configurations模式已顯示這份配置、用戶存取憑
 - [資格與排查](https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-unified-login/eligibility-and-troubleshooting)：專業帳號／所屬商家、不同功能錯誤的分別處理、支援蒐證不能含秘密。
 - [內容發佈](https://developers.facebook.com/documentation/instagram-platform/content-publishing)：Unified Login最小發佈權限、媒體處理及正式media_publish；可用Meta resumable上傳本機影片，後續T01可先驗證單支發文，不以正式雲端服務開通為必要前置。
 
-T01仍未完成。Facebook路線已通過Explorer真實身分讀取，下一個外部前置是新憑證的指定鑰匙圈儲存，再以本機工具核對。原Unified Login仍保留不含秘密的蒐證。後續仍需憑證效期／更新處理、具體測試影片／完整文案／發佈時間的明確核准，以及正式上傳／處理／發文工具的實作與真實驗證。
+T01仍未完成。Facebook路線已通過Explorer與本機身分預檢，單支上傳／處理／發文工具的操作與驗收限制見[人工驗收入口](../runbooks/ig-single-test.md)。本機實際素材與文案的待核准快照留在私有工作區，未加入repo。下一個外部前置為具體副本、完整文案與立即公開發佈的明確核准。原Unified Login仍保留不含秘密的蒐證；正式上傳／發文結果及憑證長期有效性尚未驗收。
+
+後續使用者將該具體內容的發佈時間指定為2026-11-03 20:00 Asia/Taipei，要求串聯Codex Scheduled及原每兩日掃描；因此不執行立即發佈。另經Meta只讀debug_token確認，目前使用者與專頁憑證皆於當日13:00到期，早於所選時間，已交接使用者延長並更新指定鑰匙圈項目。未把定時提醒的建立視為Instagram已接受排程，也未在缺少新憑證效期證據時宣稱今晚可成功發佈。
