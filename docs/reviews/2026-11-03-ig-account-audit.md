@@ -31,11 +31,17 @@ IG資產「連結的資產」頁顯示沒有連結的資產；商家導覽URL中
 
 帳號類型／可用功能、UI資產分享及角色均已確認，但新SUAT的帳號存取仍未通過。尚不能斷定Meta平台bug、權限層級或其他授權映射才是根因。停止反覆重建相同配置及猜測ID。
 
-## 已準備的替代路線與待確認
+## 已核准並建立的 Facebook Login 對照配置
 
 進一步在Facebook專頁`1424349244092893`的Connected assets直接看到`_eric_han`，故先前IG資產頁空白不能據此判定專頁未連結。其View asset網址的`658794750661258`是另一UI資產識別；點入後展示的IG ID仍為`17841403997461963`。未把UI內部識別替代官方API帳號ID。
 
-App仍提供Facebook Login舊版路線，官方頁明示需要連結專頁。已準備但尚未按新增的兩項為`pages_show_list`及`pages_read_engagement`，以現有同名專頁作對照測試；這會擴大專頁資料讀取範圍，已向使用者提出逐次確認，未預先新增`business_management`、廣告或訊息權限。UI的整批新增按鈕還包含額外權限，不能用它代替最小範圍授權。
+App仍提供Facebook Login舊版路線，官方頁明示需要連結專頁。使用者明確同意新增`pages_show_list`及`pages_read_engagement`，並只以現有同名專頁與IG進行對照。兩項已分別新增，權限頁均顯示「可供測試」。沒有使用包含額外權限的整批新增按鈕，也沒有新增`business_management`、廣告或訊息權限。
+
+保留原Unified Login配置，另外成功建立`Eric Reels Facebook Test`，配置ID=`4622652997968792`：General登入、用戶存取憑證，恰好包含`instagram_basic`、`instagram_content_publish`、`pages_read_engagement`、`pages_show_list`。選擇專頁的限制仍須在實際用戶授權畫面確認，配置建立本身不等於已分享專頁或取得新憑證。
+
+Graph API Explorer的Configurations模式已顯示這份配置、用戶存取憑證及上述四項權限。但在Codex內建瀏覽器點選Generate Access Token後，沒有開啟授權視窗，也沒有產生憑證；頁面曾記錄Failed to fetch，但尚不能據此證實網路或瀏覽器的根因。這是授權視窗未完成，不是已取得新Facebook憑證後API拒絕存取的證據。停止重複點擊，請使用者在平常的Chrome／Safari完成同一份配置的授權，僅選既有專頁／IG，遇到額外權限先停下。
+
+新Facebook用戶憑證尚未取得；因此尚未執行對照路線的`me/accounts?fields=id,name,instagram_business_account`，不能把原SUAT的空清單結果套用成Facebook路線的結果。後續回報只提供帳號、專頁與錯誤摘要，不貼憑證；讀取專頁列表時不要求回傳`access_token`欄位。
 
 ## 官方依據
 
@@ -45,4 +51,4 @@ App仍提供Facebook Login舊版路線，官方頁明示需要連結專頁。已
 - [資格與排查](https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-unified-login/eligibility-and-troubleshooting)：專業帳號／所屬商家、不同功能錯誤的分別處理、支援蒐證不能含秘密。
 - [內容發佈](https://developers.facebook.com/documentation/instagram-platform/content-publishing)：Unified Login最小發佈權限、媒體處理及正式media_publish；可用Meta resumable上傳本機影片，後續T01可先驗證單支發文，不以正式雲端服務開通為必要前置。
 
-T01仍未完成。下一個外部前置是使用者確認是否採用上述兩項專頁讀取權限進行Facebook Login對照；若維持原權限，則已有足夠不含秘密的蒐證供Meta支援排查。通過身分核對後，仍需具體測試影片、完整文案及發佈時間的明確核准，以及正式上傳／處理／發文工具的實作與真實驗證。
+T01仍未完成。下一個外部前置是在Chrome／Safari完成已核准配置的Facebook授權，再核對專頁連結的IG。原Unified Login已有不含秘密的蒐證供Meta支援排查。通過身分核對後，仍需具體測試影片、完整文案及發佈時間的明確核准，以及正式上傳／處理／發文工具的實作與真實驗證。
