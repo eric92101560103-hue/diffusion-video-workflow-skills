@@ -39,9 +39,21 @@ App仍提供Facebook Login舊版路線，官方頁明示需要連結專頁。使
 
 保留原Unified Login配置，另外成功建立`Eric Reels Facebook Test`，配置ID=`4622652997968792`：General登入、用戶存取憑證，恰好包含`instagram_basic`、`instagram_content_publish`、`pages_read_engagement`、`pages_show_list`。選擇專頁的限制仍須在實際用戶授權畫面確認，配置建立本身不等於已分享專頁或取得新憑證。
 
-Graph API Explorer的Configurations模式已顯示這份配置、用戶存取憑證及上述四項權限。但在Codex內建瀏覽器點選Generate Access Token後，沒有開啟授權視窗，也沒有產生憑證；頁面曾記錄Failed to fetch，但尚不能據此證實網路或瀏覽器的根因。這是授權視窗未完成，不是已取得新Facebook憑證後API拒絕存取的證據。停止重複點擊，請使用者在平常的Chrome／Safari完成同一份配置的授權，僅選既有專頁／IG，遇到額外權限先停下。
+Graph API Explorer的Configurations模式已顯示這份配置、用戶存取憑證及上述四項權限。最初在Codex內建瀏覽器點選Generate Access Token後沒有開啟授權視窗；頁面曾記錄Failed to fetch，但尚不能據此證實根因。之後使用者回覆已點選授權，重新連回Explorer已看到「用戶憑證」並完成以下真實只讀查詢。
 
-新Facebook用戶憑證尚未取得；因此尚未執行對照路線的`me/accounts?fields=id,name,instagram_business_account`，不能把原SUAT的空清單結果套用成Facebook路線的結果。後續回報只提供帳號、專頁與錯誤摘要，不貼憑證；讀取專頁列表時不要求回傳`access_token`欄位。
+## Facebook 用戶憑證真實只讀成功
+
+以下查詢使用同一份Explorer中的新Facebook用戶憑證、graph.facebook.com、v26.0，不回傳或保存憑證欄位：
+
+- `me?fields=id,name`：回傳Eric Han的Facebook用戶身分，與原SUAT的System User不同。
+- `me/permissions`：`pages_show_list`、`instagram_basic`、`instagram_content_publish`、`pages_read_engagement`及原有`public_profile`均為`granted`。配置所列權限與憑證實際授予權限已分別核對。
+- `me/accounts?fields=id,name,instagram_business_account{id,username}`：空data。不能單憑此結果宣稱專頁／IG不可存取。
+- `1424349244092893?fields=id,name,instagram_business_account{id,username}`：成功回傳專頁「韓沂展 Eric Han」，其`instagram_business_account.id`為`17841403997461963`、username為`_eric_han`。
+- `17841403997461963?fields=id,username`：成功回傳相同IG ID及`_eric_han`。這是目標IG的實際API身分讀取成功，已超過UI連結查核，但不是實際發文成功。
+
+結論：Facebook Login用戶憑證可存取指定專頁與IG，無須為此次讀取再新增廣告／商家／訊息權限。專頁清單列舉與直接存取的行為不同，原因尚未確定；原Unified Login SUAT的失敗原因也尚未證實，不能把替代路線成功描述為已修復SUAT。
+
+已交接使用者在登入鑰匙圈另外保存`EricReelsPublisher.Facebook`、account=`17841403997461963`，保留原SUAT項目。尚待儲存確認及本機`REEL_IG_LOGIN=facebook`預檢；憑證有效期與長期更新方式也尚未驗收。沒有建立媒體容器、上傳影片或呼叫`media_publish`。
 
 ## 官方依據
 
@@ -51,4 +63,4 @@ Graph API Explorer的Configurations模式已顯示這份配置、用戶存取憑
 - [資格與排查](https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-unified-login/eligibility-and-troubleshooting)：專業帳號／所屬商家、不同功能錯誤的分別處理、支援蒐證不能含秘密。
 - [內容發佈](https://developers.facebook.com/documentation/instagram-platform/content-publishing)：Unified Login最小發佈權限、媒體處理及正式media_publish；可用Meta resumable上傳本機影片，後續T01可先驗證單支發文，不以正式雲端服務開通為必要前置。
 
-T01仍未完成。下一個外部前置是在Chrome／Safari完成已核准配置的Facebook授權，再核對專頁連結的IG。原Unified Login已有不含秘密的蒐證供Meta支援排查。通過身分核對後，仍需具體測試影片、完整文案及發佈時間的明確核准，以及正式上傳／處理／發文工具的實作與真實驗證。
+T01仍未完成。Facebook路線已通過Explorer真實身分讀取，下一個外部前置是新憑證的指定鑰匙圈儲存，再以本機工具核對。原Unified Login仍保留不含秘密的蒐證。後續仍需憑證效期／更新處理、具體測試影片／完整文案／發佈時間的明確核准，以及正式上傳／處理／發文工具的實作與真實驗證。

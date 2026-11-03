@@ -28,6 +28,23 @@
 
 成功輸出仍是 publishing_permission=not_verified、published=false。這是帳號預檢，不是發佈成功或雲端已啟用。
 
+### 已核對的 Facebook Login 對照路線
+
+2026-11-03已在Graph API Explorer用Facebook用戶憑證直接讀到指定專頁及其IG，也直接讀到`17841403997461963`／`_eric_han`；`me/accounts`同時回傳空清單，故空清單不能單獨作為此路線不可用的結論。詳見[本次真實查核紀錄](../reviews/2026-11-03-ig-account-audit.md)。原Unified Login SUAT尚未修復。
+
+使用者將這份新憑證另存至登入鑰匙圈`EricReelsPublisher.Facebook`、account=`17841403997461963`並確認完成後，以既有Facebook路線預檢；不覆寫原SUAT項目、不把憑證放入命令：
+
+```sh
+env -u REEL_IG_ACCESS_TOKEN \
+  REEL_IG_LOGIN=facebook \
+  REEL_IG_API_VERSION=v26.0 \
+  REEL_IG_ACCOUNT_ID=17841403997461963 \
+  REEL_IG_KEYCHAIN_SERVICE=EricReelsPublisher.Facebook \
+  .venv/bin/python -m reel_publisher instagram-check
+```
+
+此命令查詢配置的IG ID並由共同Workflow核對username，仍不測試發佈能力或憑證長期有效性。`instagram-diagnose`僅適用Unified Login，不用它檢查Facebook用戶憑證。
+
 ## 統一登入分階段診斷
 
 `instagram-diagnose --business-id BUSINESS_ID`先用同一憑證核對`me?fields=client_business_id`，商家符合才查`me/assigned_instagram_accounts?fields=id,username&limit=100`。此命令在開啟Workflow之前執行，不建立或修改候選資料庫，不掃描影片、不發佈、不調整配置。
