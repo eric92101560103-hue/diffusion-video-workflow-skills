@@ -61,6 +61,7 @@ def main(argv: Sequence[str] | None = None, *, local_only: bool = False) -> int:
     preview = commands.add_parser('preview', help='按給定順序建議日期，不啟用發佈')
     preview.add_argument('ids', nargs='+')
     preview.add_argument('--first-date', type=date.fromisoformat)
+    preview.add_argument('--not-before', type=date.fromisoformat, help='這批安排不早於指定日期；沿用既定隔日節奏')
     approve = commands.add_parser('approve', help='確認已審核版本，不上傳或啟用雲端')
     approve.add_argument('--versions-file', type=Path, required=True,
                          help='JSON object: candidate ID to reviewed revision number')
@@ -210,7 +211,8 @@ def main(argv: Sequence[str] | None = None, *, local_only: bool = False) -> int:
                 caption_text = arguments.file.read_text() if arguments.file else arguments.text
                 output = asdict(workflow.set_caption(arguments.id, caption_text))
             elif arguments.command == 'preview':
-                output = [asdict(item) for item in workflow.preview(arguments.ids, first_date=arguments.first_date)]
+                output = [asdict(item) for item in workflow.preview(arguments.ids, first_date=arguments.first_date,
+                                                                  not_before=arguments.not_before)]
             elif arguments.command == 'approve':
                 versions = json.loads(arguments.versions_file.read_text())
                 if not isinstance(versions, dict) or not all(

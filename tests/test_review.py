@@ -5,6 +5,18 @@ from tests.support import WorkflowFixture
 
 
 class ReviewTests(WorkflowFixture):
+    def test_user_can_defer_batch_without_resetting_cadence_or_moving_other_video(self):
+        first, second = self.candidates()
+        with self.workflow() as workflow:
+            workflow.set_caption(first.id, '既有影片')
+            original = workflow.preview([first.id], first_date=date(2026, 11, 3))[0]
+            workflow.approve({first.id: original.revision})
+            deferred = workflow.preview([second.id], not_before=date(2026, 11, 10))[0]
+            self.assertEqual(deferred.scheduled_for, '2026-11-11T20:00:00+08:00')
+            self.assertEqual(workflow.get(first.id).scheduled_for, original.scheduled_for)
+            restored = workflow.preview([second.id])[0]
+            self.assertEqual(restored.scheduled_for, '2026-11-05T20:00:00+08:00')
+
     def candidates(self):
         self.video('one.mp4', b'first completed video')
         self.video('two.mp4', b'second completed video')

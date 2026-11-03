@@ -453,7 +453,8 @@ class Workflow:
                      and job.status in ('unknown', 'failed'))
         return slots
 
-    def preview(self, candidate_ids: Sequence[str], *, first_date: date | None = None) -> list[Candidate]:
+    def preview(self, candidate_ids: Sequence[str], *, first_date: date | None = None,
+                not_before: date | None = None) -> list[Candidate]:
         if not candidate_ids or len(set(candidate_ids)) != len(candidate_ids):
             raise WorkflowError('請提供不重複的候選影片順序')
         try:
@@ -476,7 +477,7 @@ class Workflow:
             cutoff = self.now().astimezone(ZoneInfo('Asia/Taipei'))
             cutoff = max([cutoff, *self._reserved_slots(candidate_ids)])
             slot = datetime.combine(anchor, time(20), tzinfo=ZoneInfo('Asia/Taipei'))
-            while slot <= cutoff:
+            while slot <= cutoff or (not_before is not None and slot.date() < not_before):
                 slot += timedelta(days=2)
             for candidate in candidates:
                 if candidate.scheduled_for != slot.isoformat():

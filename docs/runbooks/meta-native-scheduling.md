@@ -20,11 +20,15 @@
 
 修改完整文案用 `--caption-file /absolute/private/caption.txt`，時刻用 `--at YYYY-MM-DDT20:00:00+08:00`。同項修改和取消互斥，未知修改同時保留新舊時段。修改媒體需另行審閱與安全取消舊項目，不能用改本機 path 替換平台影片。
 
+新候選若需保留較晚的核准日期，先用 `preview CANDIDATE --not-before YYYY-MM-DD` 預覽，再核准該版本。這只限制本批最早日期，不重設首發錨點、不改其他影片；日期仍按既定每兩天20:00，非節奏日會順延至下一個可用日。預覽不具有上傳授權。
+
 ## 實際保存與核對
 
 Meta Business Suite → Content → Create reel，僅選指定 Instagram，完整上傳 job.media_path。輸入完整文案，Schedule 使用 Asia/Taipei 對應日期20:00，公開、不跨貼。保存後回 Scheduled 重新載入，核對帳號、完整文案、日期、時刻及可見性，保存私有截圖。
 
 既有項目可在 Scheduled 的項目選單 Manage post → Edit reel 修改；選單可能需向右展開。畫面未載入先等新狀態，不能連點建立。文案使用實際輸入，AX setValue 曾未更新網站實際狀態。時間修改後以重新載入結果為準。取消入口與可用性依 Meta 當前 UI，確認項目識別並重新核對，不能把送出當完成。
+
+2026-11-03實機可用的可恢復取消方式是 Manage post → Move to Drafts。確認框明示取消原排程且不會發佈後，移回草稿；重新載入 Scheduled 與 Drafts，核對同一帳號／唯一測試項目的完整文案及平台結果。只見排程清單空白不足以收錄cancelled。保留草稿，不為取消驗收永久刪除影片。日期欄若鍵盤輸入未保存，使用可見月曆選日，再核對PM及UTC+08；目前介面顯示Asia/Shanghai，與此次台北排程時刻同為UTC+08，不宣稱已更改平台時區設定。
 
 已在 Meta 保存、尚未納入本工具的同一已核准影片，可 native-prepare 後直接收錄 scheduled 回執（operation_id:null），只建立本機對應；不要 native-begin create 或再次上傳。
 
