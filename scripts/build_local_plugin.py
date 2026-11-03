@@ -21,9 +21,8 @@ def main():
     files += sorted((repository / 'reel_publisher').glob('*.py'))
     files += sorted(path for path in (repository / 'skills').rglob('*')
                     if path.is_file() and path.suffix in ('.md', '.json', '.yaml', '.txt', '.tsx'))
-    guide = repository / 'docs/runbooks/codex-chat-publishing.md'
-    if guide.exists():
-        files.append(guide)
+    files += [repository / 'docs/runbooks' / name for name in
+              ('codex-chat-publishing.md', 'meta-native-scheduling.md')]
     # Exclusive creation prevents accidental replacement of an already reviewed artifact.
     with zipfile.ZipFile(args.output, 'x', compression=zipfile.ZIP_DEFLATED) as output:
         output.writestr(prefix + '/.agents/plugins/marketplace.json', json.dumps(catalog, ensure_ascii=False, indent=2))

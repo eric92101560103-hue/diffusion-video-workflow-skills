@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from typing import Literal
 
 from .chat_notifications import ChatDelivery, ChatReport, ChatCheck
+from .native_scheduling import NativeJob, NativeSchedules, NativeObservation
 
 from .releases import ApprovedRelease
 from .media import inspect_video
@@ -137,6 +138,21 @@ class Workflow:
                 fingerprint TEXT PRIMARY KEY,
                 path TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS native_jobs (
+                id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL UNIQUE REFERENCES candidates(id),
+                native_schedule_id TEXT UNIQUE, payload TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS native_faults (
+                job_id TEXT PRIMARY KEY REFERENCES native_jobs(id), reason TEXT NOT NULL, event_key TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS native_archives (
+                job_id TEXT PRIMARY KEY REFERENCES native_jobs(id), destination TEXT NOT NULL,
+                stage TEXT NOT NULL, quarantine TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS native_receipts (
+                id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES native_jobs(id),
+                payload TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS settings (name TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS chat_reports (
                 id TEXT PRIMARY KEY, status TEXT NOT NULL, payload TEXT NOT NULL
@@ -190,6 +206,51 @@ class Workflow:
     def list_candidates(self) -> list[Candidate]:
         rows = self.db.execute('SELECT * FROM candidates ORDER BY created_at, id').fetchall()
         return [self._candidate(row) for row in rows]
+
+    def native_prepare(self, candidate_id: str, revision: int, *, media: Path | None = None,
+                       confirmed_media: bool = False) -> NativeJob:
+        if media is not None and not confirmed_media:
+            raise WorkflowError('替換上傳檔需明確確認與原片的對應及內容')
+        return NativeSchedules(self).prepare(candidate_id, revision, media)
+
+    def native_get(self, job_id: str) -> NativeJob:
+        return NativeSchedules(self).get(job_id)
+
+    def native_list(self) -> list[NativeJob]:
+        return NativeSchedules(self).jobs()
+
+    def native_begin(self, job_id: str, revision: int, *, action: str, confirmed: bool = False,
+                     caption: str | None = None, scheduled_for: datetime | None = None) -> NativeJob:
+        return NativeSchedules(self).begin(job_id, revision, action, confirmed, caption, scheduled_for)
+
+    def native_observe(self, job_id: str, observation: NativeObservation) -> NativeJob:
+        return NativeSchedules(self).observe(job_id, observation)
+
+    def native_withdraw(self, job_id: str, *, confirmed: bool = False) -> NativeJob:
+        return NativeSchedules(self).withdraw(job_id, confirmed)
+
+    def native_archive(self, job_id: str) -> NativeJob:
+        return NativeSchedules(self).archive(job_id)
+
+    def native_blocked(self, job_id: str, reason: str) -> NativeJob:
+        return NativeSchedules(self).blocked(job_id, reason)
+
+    def native_check(self) -> list[dict[str, str]]:
+        return NativeSchedules(self).check()
+
+    def native_cleanup(self, job_id: str, *, confirmed: bool = False) -> NativeJob:
+        return NativeSchedules(self).cleanup(job_id, confirmed)
+
+    def _native_release(self, candidate_id: str) -> ApprovedRelease:
+        candidate = self.get(candidate_id)
+        if (candidate.status != 'approved' or candidate.approval_revision != candidate.revision
+                or not candidate.caption or not candidate.scheduled_for):
+            raise WorkflowError('需要完整核准且版本相符的候選')
+        if datetime.fromisoformat(candidate.scheduled_for) <= self.now():
+            raise WorkflowError('候選日期已過，請重新審核')
+        self._check_video(candidate)
+        return ApprovedRelease(candidate.id, candidate.revision, candidate.fingerprint,
+                               candidate.path, candidate.caption, candidate.scheduled_for)
 
     def export_release(self, candidate_id: str) -> ApprovedRelease:
         """Preparation only: export the exact reviewed revision, without sending media."""
@@ -381,6 +442,17 @@ class Workflow:
         except (OSError, ValueError) as error:
             raise WorkflowError('影片不存在或無法驗證，請重新掃描') from error
 
+    def _reserved_slots(self, excluding: Sequence[str]) -> list[datetime]:
+        slots = [datetime.fromisoformat(candidate.scheduled_for)
+                 for candidate in self.list_candidates()
+                 if candidate.id not in excluding and candidate.scheduled_for and candidate.status in (
+                     'approved', 'active', 'publishing', 'unknown', 'published', 'test_in_progress',
+                     'native_pending', 'native_unknown', 'native_scheduled')]
+        slots.extend(datetime.fromisoformat(job.proposed_for) for job in self.native_list()
+                     if job.candidate_id not in excluding and job.proposed_for
+                     and job.status in ('unknown', 'failed'))
+        return slots
+
     def preview(self, candidate_ids: Sequence[str], *, first_date: date | None = None) -> list[Candidate]:
         if not candidate_ids or len(set(candidate_ids)) != len(candidate_ids):
             raise WorkflowError('請提供不重複的候選影片順序')
@@ -402,11 +474,7 @@ class Workflow:
                 if first_date is not None and first_date != anchor:
                     raise WorkflowError('首發日期已固定；新增批次沿用原本隔日節奏')
             cutoff = self.now().astimezone(ZoneInfo('Asia/Taipei'))
-            for existing in self.list_candidates():
-                if existing.id not in candidate_ids and existing.status in (
-                    'approved', 'active', 'publishing', 'unknown', 'published'
-                ) and existing.scheduled_for:
-                    cutoff = max(cutoff, datetime.fromisoformat(existing.scheduled_for))
+            cutoff = max([cutoff, *self._reserved_slots(candidate_ids)])
             slot = datetime.combine(anchor, time(20), tzinfo=ZoneInfo('Asia/Taipei'))
             while slot <= cutoff:
                 slot += timedelta(days=2)
@@ -446,13 +514,8 @@ class Workflow:
                 if candidate.scheduled_for in slots:
                     raise WorkflowError('同一個時段不能安排兩支影片')
                 slots.add(candidate.scheduled_for)
-                collision = self.db.execute(
-                    "SELECT id FROM candidates WHERE scheduled_for = ? AND id != ? "
-                    "AND status IN ('approved', 'active', 'publishing', 'unknown', 'published')",
-                    (candidate.scheduled_for, candidate.id),
-                ).fetchone()
-                if collision and str(collision['id']) not in revisions:
-                    raise WorkflowError('時段已被其他安排使用，請重新查看排程')
+                if datetime.fromisoformat(candidate.scheduled_for) in self._reserved_slots(list(revisions)):
+                    raise WorkflowError('時段已被其他安排或待核對修改保留，請重新查看排程')
                 self._check_video(candidate)
             for candidate in candidates:
                 self.db.execute(
@@ -486,7 +549,7 @@ class Workflow:
         try:
             self.db.execute('BEGIN IMMEDIATE')
             pending = self.db.execute(
-                "SELECT id FROM candidates WHERE fingerprint = ? AND status IN ('candidate', 'approved', 'test_in_progress')",
+                "SELECT id FROM candidates WHERE fingerprint = ? AND status IN ('candidate', 'approved', 'test_in_progress', 'native_pending', 'native_unknown', 'native_scheduled')",
                 (digest,),
             ).fetchone()
             if pending:

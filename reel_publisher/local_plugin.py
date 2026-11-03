@@ -36,5 +36,5 @@ def preflight(config: 'Config') -> dict[str, object]:
             'configured': bool(values.get('chat_first_scan')),
             'enabled': values.get('chat_enabled') == 'true',
             'primary': values.get('scan_owner'),
-            'scheduler': 'managed_in_codex', 'publishing_available': False,
+            'scheduler': 'managed_in_codex', 'publishing_available': False, 'native_mode': 'browser_operations_with_receipts',
             'credentials_required': False}

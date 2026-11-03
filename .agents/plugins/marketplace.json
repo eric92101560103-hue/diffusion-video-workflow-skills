@@ -1,0 +1,12 @@
+{
+  "name": "diffusion-reels-personal",
+  "interface": {"displayName": "Reels 個人工作流程"},
+  "plugins": [
+    {
+      "name": "diffusion-reels-local",
+      "source": {"source": "local", "path": "./"},
+      "policy": {"installation": "AVAILABLE"},
+      "category": "Productivity"
+    }
+  ]
+}

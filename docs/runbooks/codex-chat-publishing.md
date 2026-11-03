@@ -1,6 +1,6 @@
 # 本機 Codex 掃描提醒與人工審核 plugin
 
-本手冊對應 #13。現行通知規則以 PR #14 的 2026-10-30 修訂為準：Codex 對話為主要掃描提醒，Email／SMTP／launchd 非必要。這個套件只交付本機流程，沒有正式 IG 或雲端發佈能力。#7 的真實到期／可見通知／休眠恢復，與 #11 完整雲端 plugin，均需另外驗收。
+本手冊對應 #13。現行通知規則以 PR #14 的 2026-10-30 修訂為準：Codex 對話為主要掃描提醒，Email／SMTP／launchd 非必要。0.2 系列補上 [Meta 原生排程](meta-native-scheduling.md) 的 UI 技能及持久回執／歸檔入口。CLI 不直接發文；#7 實際到期提醒與 #11 完整真實流程仍另驗收。
 
 ## 安裝包與依賴
 
@@ -12,7 +12,7 @@
 python3 scripts/build_local_plugin.py --output /absolute/output/reels-local.zip
 ```
 
-輸出路徑需尚未存在。zip 包含一個獨立 marketplace 根目錄、portable plugin.json、三個技能與本機 CLI。只收 allowlist 檔案，不包含環境檔、資料庫、影片、虛擬環境或真實配置。
+輸出路徑需尚未存在。zip 包含一個獨立 marketplace 根目錄、portable plugin.json、四個技能與本機 CLI。只收 allowlist 檔案，不包含環境檔、資料庫、影片、虛擬環境或真實配置。
 
 將 zip 解壓到長期保存的私人目錄。其 `diffusion-reels-local-marketplace/.agents/plugins/marketplace.json` 使用官方本機 marketplace 格式，指向同根目錄 `plugins/diffusion-reels-local`。在支援的 Codex CLI 可執行：
 
@@ -120,10 +120,10 @@ python3 /absolute/PLUGIN/scripts/reels.py --database /absolute/private/state.sql
 
 停用分成兩層：先以 Codex automation 工具停用對應排程，再執行同一資料庫的 chat-disable。它保留候選、通知、文案與核准，阻止後續 chat-check。若只停用 plugin 而排程仍呼叫舊腳本，排程可能繼續工作，不能宣稱已停止。
 
-本機 marketplace plugin 可在 Plugins 停用；受信任專案也可用官方 `.codex/config.toml` 的 `[plugins."diffusion-reels-local@diffusion-reels-personal"] enabled=false`。不要直接改寫使用者現有整份設定。移除套件前先核對排程停止；私有資料庫不隨套件刪除。這些本機停用操作不會取消任何已啟用雲端工作。
+本機 marketplace plugin 可在 Plugins 停用；受信任專案也可用官方 `.codex/config.toml` 的 `[plugins."diffusion-reels-local@diffusion-reels-personal"] enabled=false`。不要直接改寫使用者現有整份設定。移除套件前先核對排程停止；私有資料庫不隨套件刪除。這些本機停用操作不會取消 Meta 既有原生排程。
 
 ## 本次證據與未完成項目
 
 安裝包在臨時目錄解壓後，已用合成影片跑通公開 CLI 的 preflight → 配置／啟用 → 掃描 → 明確回報確認 → 重跑去重 → 文案／日期／版本核准 → 本機停用，未移動或上傳影片。另驗證並行觸發、輸出中斷、掃描中斷、錯誤／恢復與舊通知遷移。
 
-後續實機安裝與安裝副本驗證已完成；尚需使用者重啟 App 並核對新對話與既有對話載入；再經授權遷移原狀態與更新原 ACTIVE 任務。真正08:00到期、桌面通知可見性與休眠恢復需 #7 實測。官方 IG、雲端排程、遠端事件同步與完整 plugin 在其他票驗收；此套件不替代它們。
+目前已完成實機安裝、公開 CLI 驗證與原候選庫銜接；升級保留原節奏及 unconfirmed 回報。新技能在 App 新舊對話中的重新載入仍需實機核對，不以 CLI 安裝成功冒充。真正08:00到期、桌面通知可見性與休眠恢復需 #7；原生修改／取消、正式成功及離線歸檔由 #2/#6/#9/#11 分列驗收。自建雲端發佈與七天副本清理已退出有效範圍。

@@ -1,5 +1,7 @@
 # Instagram 發佈流程討論
 
+> 歷史設計／舊路徑：2026-11-03起改以[有效原生規格](../specs/instagram-reels-publishing.md)及[Meta操作手冊](../runbooks/meta-native-scheduling.md)為準。以下保留原型與當時限制，不是目前雲端部署或補發要求。
+
 狀態：流程已透過規格與任務拆分確認，使用者已授權依 implement 執行；本機功能實作中，真實授權及部署尚未完成。更新：2026-10-29。
 
 ## 已確認

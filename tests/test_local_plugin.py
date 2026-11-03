@@ -60,6 +60,26 @@ class LocalPluginTests(unittest.TestCase):
             versions.write_text(json.dumps({identifier: plan[0]['revision']}))
             approved = invoke('approve', '--versions-file', str(versions))
             self.assertEqual(approved[0]['status'], 'approved')
+            # Synthetic receipts prove installed CLI integration, not real Meta scheduling.
+            job = invoke('native-prepare', identifier, '--revision', str(approved[0]['revision']))
+            intent = invoke('native-begin', job['id'], '--revision', str(job['revision']),
+                            '--action', 'create', '--confirm-operation')
+            self.assertEqual(invoke('native-get', job['id'])['status'], 'unknown')
+            from datetime import datetime, timezone
+            proof = root / 'synthetic-proof.png'
+            proof.write_bytes(b'synthetic UI fixture, not actual platform evidence')
+            receipt = root / 'native-receipt.json'
+            receipt.write_text(json.dumps(dict(receipt_id='installed-cli-synthetic',
+                operation_id=intent['operation_id'], result='scheduled', native_schedule_id='synthetic-schedule',
+                account_id=job['account_id'], username=job['username'], caption=job['caption'],
+                scheduled_for=job['scheduled_for'], media_fingerprint=job['media_fingerprint'],
+                checked_at=datetime.now(timezone.utc).isoformat(),
+                source_url='https://business.facebook.com/latest/posts/scheduled_posts',
+                evidence_path=str(proof), reloaded=True, upload_complete=True, public=True, instagram_only=True)))
+            saved = invoke('native-observe', job['id'], '--receipt', str(receipt))
+            self.assertEqual(saved['status'], 'scheduled')
+            self.assertIsNone(saved['media_id'])
+            self.assertEqual(invoke('native-list')[0]['id'], job['id'])
             self.assertTrue(movie.exists())
             self.assertEqual(list(published.iterdir()), [])
             self.assertFalse(invoke('chat-disable')['enabled'])

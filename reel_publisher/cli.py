@@ -11,6 +11,7 @@ import sys
 import time
 
 from .workflow import Config, Workflow, WorkflowError
+from .native_scheduling import NativeObservation
 from .instagram import InstagramConnection
 from .instagram_publishing import FacebookReels
 from .notifications import SMTPNotifier
@@ -63,6 +64,36 @@ def main(argv: Sequence[str] | None = None, *, local_only: bool = False) -> int:
     approve = commands.add_parser('approve', help='確認已審核版本，不上傳或啟用雲端')
     approve.add_argument('--versions-file', type=Path, required=True,
                          help='JSON object: candidate ID to reviewed revision number')
+    native_prepare = commands.add_parser('native-prepare', help='保留原生排程快照及上傳副本；不操作 Meta')
+    native_prepare.add_argument('id')
+    native_prepare.add_argument('--revision', type=int, required=True)
+    native_prepare.add_argument('--media', type=Path)
+    native_prepare.add_argument('--confirm-media', action='store_true')
+    commands.add_parser('native-list', help='列出原生排程紀錄；不是即時平台查詢')
+    native_get = commands.add_parser('native-get')
+    native_get.add_argument('id')
+    native_begin = commands.add_parser('native-begin', help='外部 UI 寫入前保留唯一操作；中斷後只可核對')
+    native_begin.add_argument('id')
+    native_begin.add_argument('--revision', type=int, required=True)
+    native_begin.add_argument('--action', choices=['create', 'modify', 'cancel'], required=True)
+    native_begin.add_argument('--confirm-operation', action='store_true', required=True)
+    native_begin.add_argument('--caption-file', type=Path)
+    native_begin.add_argument('--at', type=datetime.fromisoformat)
+    native_observe = commands.add_parser('native-observe', help='收錄實際 Meta UI 核對回執；不獨立證明平台狀態')
+    native_observe.add_argument('id')
+    native_observe.add_argument('--receipt', type=Path, required=True)
+    native_blocked = commands.add_parser('native-blocked', help='記錄瀏覽器／登入／內容核對阻擋；保留平台最後已知結果')
+    native_blocked.add_argument('id')
+    native_blocked.add_argument('--reason', choices=['browser_unavailable', 'login_required', 'item_mismatch'], required=True)
+    commands.add_parser('native-check', help='檢查已收錄結果並建立去重介入提醒；不查網路、不補發')
+    native_withdraw = commands.add_parser('native-withdraw', help='明確撤回尚未外送的本機準備；不取消 Meta 項目')
+    native_withdraw.add_argument('id')
+    native_withdraw.add_argument('--confirm-withdraw', action='store_true', required=True)
+    native_archive = commands.add_parser('native-archive', help='正式成功後安全歸檔原片')
+    native_archive.add_argument('id')
+    native_cleanup = commands.add_parser('native-cleanup', help='明確清理已終止工作的本機受控上傳副本')
+    native_cleanup.add_argument('id')
+    native_cleanup.add_argument('--confirm-cleanup', action='store_true', required=True)
     if not local_only:
         tick = commands.add_parser('tick', help='到期才掃描並寄信；需先配置 SMTP')
         tick.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
@@ -117,7 +148,37 @@ def main(argv: Sequence[str] | None = None, *, local_only: bool = False) -> int:
             return 0
         output: object
         with Workflow(config) as workflow:
-            if arguments.command == 'chat-setup':
+            if arguments.command == 'native-prepare':
+                output = asdict(workflow.native_prepare(arguments.id, arguments.revision,
+                                media=arguments.media, confirmed_media=arguments.confirm_media))
+            elif arguments.command == 'native-list':
+                output = [asdict(job) for job in workflow.native_list()]
+            elif arguments.command == 'native-get':
+                output = asdict(workflow.native_get(arguments.id))
+            elif arguments.command == 'native-begin':
+                output = asdict(workflow.native_begin(arguments.id, arguments.revision, action=arguments.action,
+                    confirmed=arguments.confirm_operation,
+                    caption=arguments.caption_file.read_text() if arguments.caption_file else None, scheduled_for=arguments.at))
+            elif arguments.command == 'native-observe':
+                values = json.loads(arguments.receipt.read_text())
+                if not isinstance(values, dict):
+                    raise WorkflowError('回執必須是 JSON object')
+                try:
+                    receipt = NativeObservation(**values)
+                except TypeError:
+                    raise WorkflowError('回執欄位缺少或無效') from None
+                output = asdict(workflow.native_observe(arguments.id, receipt))
+            elif arguments.command == 'native-blocked':
+                output = asdict(workflow.native_blocked(arguments.id, arguments.reason))
+            elif arguments.command == 'native-check':
+                output = workflow.native_check()
+            elif arguments.command == 'native-withdraw':
+                output = asdict(workflow.native_withdraw(arguments.id, confirmed=arguments.confirm_withdraw))
+            elif arguments.command == 'native-archive':
+                output = asdict(workflow.native_archive(arguments.id))
+            elif arguments.command == 'native-cleanup':
+                output = asdict(workflow.native_cleanup(arguments.id, confirmed=arguments.confirm_cleanup))
+            elif arguments.command == 'chat-setup':
                 output = workflow.chat_setup(first_scan=arguments.first_scan)
             elif arguments.command == 'chat-enable':
                 output = workflow.chat_enable(confirmed=arguments.confirm_primary)

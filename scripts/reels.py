@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Portable, local-review-only entrypoint; does not require pip installation."""
+"""Portable review and native-receipt entrypoint; does not require pip installation."""
 import json
 from pathlib import Path
 import sys

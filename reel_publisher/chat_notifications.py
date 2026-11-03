@@ -120,7 +120,7 @@ class ChatDelivery:
                 'unconfirmed_report_ids': [str(row['id']) for row in self.db.execute(
                     "SELECT id FROM chat_reports WHERE status = 'unconfirmed' ORDER BY rowid")],
                 'last_success': self._get('chat_last_success'), 'scan_error': self._get('chat_error_code'),
-                'scheduler': 'managed_in_codex', 'publishing_available': False}
+                'scheduler': 'managed_in_codex', 'publishing_available': False, 'native_mode': 'browser_operations_with_receipts'}
 
     def report(self, report_id: str) -> ChatReport:
         from .workflow import WorkflowError
@@ -176,6 +176,7 @@ class ChatDelivery:
             if (self._get('chat_source') != str(self.workflow.config.source.resolve()) or
                     self._get('chat_published') != str(self.workflow.config.published.resolve())):
                 raise WorkflowError('來源與已配置路徑不同，請沿用相同狀態及來源')
+            self.workflow.native_check()
             next_scan = datetime.fromisoformat(self._get('chat_next_scan') or '')
             scanned = self.workflow.now() >= next_scan
             error_code: str | None = None
