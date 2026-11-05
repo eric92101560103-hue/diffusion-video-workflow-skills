@@ -1,42 +1,42 @@
 {
   "subtitleFont": "Noto Sans TC",
-  "subtitleSize": 80,
-  "subtitleWeight": 500,
+  "subtitleSize": 48,
+  "subtitleWeight": 700,
   "subtitleFontStyle": "normal",
   "subtitleColor": "#FFFFFF",
   "subtitleLeading": 0.9,
-  "subtitleLetterSpacing": 0.5,
+  "subtitleLetterSpacing": 0,
   "subtitleTextCase": "original",
   "subtitleAlign": "center",
   "subtitleBaseline": "bottom",
   "subtitleCentered": true,
-  "subtitleLeft": 203.5,
-  "subtitleTop": 1887,
-  "subtitleWidth": 1033,
-  "subtitleHeight": 91,
+  "subtitleLeft": 152.625,
+  "subtitleTop": 1415.25,
+  "subtitleWidth": 774.75,
+  "subtitleHeight": 68.25,
   "subtitleKeepAspect": false,
   "subtitleRotation": 0,
   "subtitleScaleX": 1,
   "subtitleScaleY": 1,
   "subtitleOffsetX": 0,
   "subtitleOffsetY": 0,
-  "subtitleOpacity": 90,
+  "subtitleOpacity": 100,
   "subtitleBlendMode": "sourceOver",
   "subtitleVisible": true,
   "subtitleStrokeEnabled": false,
   "subtitleStrokeColor": "#000000",
-  "subtitleOutline": 6,
+  "subtitleOutline": 4.5,
   "subtitleStrokeOpacity": 100,
   "subtitleStrokeJoin": "round",
   "subtitleShadowEnabled": true,
   "subtitleShadowColor": "#000000",
-  "subtitleShadowOpacity": 77,
-  "subtitleShadowBlur": 0,
-  "subtitleShadowDistance": 5,
+  "subtitleShadowOpacity": 55,
+  "subtitleShadowBlur": 3,
+  "subtitleShadowDistance": 2,
   "subtitleShadowAngle": -45,
   "referenceCanvas": {
-    "width": 1440,
-    "height": 2560
+    "width": 1080,
+    "height": 1920
   },
   "export": {
     "format": "mp4",
@@ -53,5 +53,41 @@
       "sampleRate": 48000,
       "bitrate": 256000
     }
+  },
+  "title": {
+    "fontFamily": "Noto Sans TC",
+    "fontSize": 108,
+    "fontWeight": 800,
+    "fontStyle": "normal",
+    "color": "#F7F7F7",
+    "opacity": 0.97,
+    "x": 121,
+    "y": 251,
+    "width": 900,
+    "height": 320,
+    "textAlign": "center",
+    "textBaseline": "top",
+    "leading": 1.1,
+    "letterSpacing": 0,
+    "stroke": {
+      "enabled": true,
+      "color": "#787878",
+      "width": 6,
+      "join": "round",
+      "opacity": 0.78
+    },
+    "shadow": {
+      "enabled": true,
+      "color": "#000000",
+      "opacity": 0.45,
+      "blur": 10,
+      "offsetX": 1.5,
+      "offsetY": 3
+    }
+  },
+  "styleSnapshot": {
+    "updatedAt": "2026-11-05",
+    "basis": "User-adjusted effective text/stroke/shadow properties; unused top-level title constants excluded",
+    "scope": "Reusable appearance only; title wording and duration remain per-project"
   }
 }
