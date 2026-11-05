@@ -1,0 +1,4 @@
+interface:
+  display_name: "口播粗剪"
+  short_description: "在目前的 Diffusion Studio 專案清理單人中文口播，保留可編輯粗剪時間軸"
+  default_prompt: "使用 $diffusion-talking-head-rough-cut 在目前開啟的 Diffusion Studio 專案完成口播粗剪，保留原敘事順序與自然語氣"
