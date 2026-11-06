@@ -11,11 +11,13 @@ import sys
 import time
 
 from .workflow import Config, Workflow, WorkflowError
+from .native_scheduling import NativeObservation
 from .instagram import InstagramConnection
+from .instagram_publishing import FacebookReels
 from .notifications import SMTPNotifier
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, *, local_only: bool = False) -> int:
     parser = argparse.ArgumentParser(description='先審核、後發佈的 Reels 工具')
     root = Path.home() / 'Desktop' / 'Reels 成片'
     parser.add_argument('--source', type=Path, default=root / '待發佈')
@@ -25,6 +27,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=Path.home() / 'Library' / 'Application Support' / 'ReelPublisher' / 'state.sqlite3',
     )
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('preflight', help='只讀檢查本機依賴與設定，不建立狀態')
+    chat_setup = commands.add_parser('chat-setup', help='配置 Codex 對話掃描，預設停用')
+    chat_setup.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
+    chat_enable = commands.add_parser('chat-enable', help='確認主要掃描通道；不建立定時任務')
+    chat_enable.add_argument('--confirm-primary', action='store_true', required=True)
+    release = commands.add_parser('scan-release-primary', help='確認舊掃描器已停後釋放主通道；不清歷史')
+    release.add_argument('--confirm-stopped', action='store_true', required=True)
+    commands.add_parser('chat-disable', help='停用本機對話檢查，保留候選及回報紀錄')
+    commands.add_parser('chat-status', help='查看本機模式及未確認回報，不領取新通知')
+    commands.add_parser('chat-check', help='到期掃描並領取一次待確認回報，不代表已送達')
+    report = commands.add_parser('chat-report', help='人工核對指定回報，不自動重報')
+    report.add_argument('id')
+    chat_resolve = commands.add_parser('chat-resolve', help='明確核對 received 或 not-delivered')
+    chat_resolve.add_argument('id')
+    chat_resolve.add_argument('--outcome', choices=['received', 'not-delivered'], required=True)
+    chat_resolve.add_argument('--confirm-checked', action='store_true', required=True)
+    chat_import = commands.add_parser('chat-import', help='明確匯入舊 JSON 通知紀錄，視為未確認')
+    chat_import.add_argument('--ledger', type=Path, required=True)
+    chat_import.add_argument('--confirm-checked', action='store_true', required=True)
     commands.add_parser('scan', help='單次掃描，不上傳、不發佈')
     commands.add_parser('list', help='查看候選與審核狀態')
     get = commands.add_parser('get')
@@ -40,33 +61,146 @@ def main(argv: Sequence[str] | None = None) -> int:
     preview = commands.add_parser('preview', help='按給定順序建議日期，不啟用發佈')
     preview.add_argument('ids', nargs='+')
     preview.add_argument('--first-date', type=date.fromisoformat)
+    preview.add_argument('--not-before', type=date.fromisoformat, help='這批安排不早於指定日期；沿用既定隔日節奏')
     approve = commands.add_parser('approve', help='確認已審核版本，不上傳或啟用雲端')
     approve.add_argument('--versions-file', type=Path, required=True,
                          help='JSON object: candidate ID to reviewed revision number')
-    tick = commands.add_parser('tick', help='到期才掃描並寄信；需先配置 SMTP')
-    tick.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
-    watch = commands.add_parser('watch', help='持續檢查到期掃描；需由本機背景服務維持執行')
-    watch.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
-    commands.add_parser('scan-status', help='查看最後掃描結果與下一次到期時間')
-    resolve = commands.add_parser('notice-resolve', help='人工核對 unknown 後才允許標記或重寄')
-    resolve.add_argument('id')
-    resolve.add_argument('--outcome', choices=['delivered', 'not-delivered'], required=True)
-    resolve.add_argument('--confirm-checked', action='store_true', required=True)
-    commands.add_parser('notices', help='查看通知結果，unknown 不自動重寄')
-    commands.add_parser('instagram-check', help='只讀核對授權帳號，不代表已取得發佈權限')
-    service = commands.add_parser('scan-service-prepare', help='只產生未啟用的本機背景掃描設定')
-    service.add_argument('--directory', type=Path, required=True)
-    service.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
+    native_prepare = commands.add_parser('native-prepare', help='保留原生排程快照及上傳副本；不操作 Meta')
+    native_prepare.add_argument('id')
+    native_prepare.add_argument('--revision', type=int, required=True)
+    native_prepare.add_argument('--media', type=Path)
+    native_prepare.add_argument('--confirm-media', action='store_true')
+    commands.add_parser('native-list', help='列出原生排程紀錄；不是即時平台查詢')
+    native_get = commands.add_parser('native-get')
+    native_get.add_argument('id')
+    native_begin = commands.add_parser('native-begin', help='外部 UI 寫入前保留唯一操作；中斷後只可核對')
+    native_begin.add_argument('id')
+    native_begin.add_argument('--revision', type=int, required=True)
+    native_begin.add_argument('--action', choices=['create', 'modify', 'cancel'], required=True)
+    native_begin.add_argument('--confirm-operation', action='store_true', required=True)
+    native_begin.add_argument('--caption-file', type=Path)
+    native_begin.add_argument('--at', type=datetime.fromisoformat)
+    native_observe = commands.add_parser('native-observe', help='收錄實際 Meta UI 核對回執；不獨立證明平台狀態')
+    native_observe.add_argument('id')
+    native_observe.add_argument('--receipt', type=Path, required=True)
+    native_blocked = commands.add_parser('native-blocked', help='記錄瀏覽器／登入／內容核對阻擋；保留平台最後已知結果')
+    native_blocked.add_argument('id')
+    native_blocked.add_argument('--reason', choices=['browser_unavailable', 'login_required', 'item_mismatch'], required=True)
+    commands.add_parser('native-check', help='檢查已收錄結果並建立去重介入提醒；不查網路、不補發')
+    native_withdraw = commands.add_parser('native-withdraw', help='明確撤回尚未外送的本機準備；不取消 Meta 項目')
+    native_withdraw.add_argument('id')
+    native_withdraw.add_argument('--confirm-withdraw', action='store_true', required=True)
+    native_archive = commands.add_parser('native-archive', help='正式成功後安全歸檔原片')
+    native_archive.add_argument('id')
+    native_cleanup = commands.add_parser('native-cleanup', help='明確清理已終止工作的本機受控上傳副本')
+    native_cleanup.add_argument('id')
+    native_cleanup.add_argument('--confirm-cleanup', action='store_true', required=True)
+    if not local_only:
+        tick = commands.add_parser('tick', help='到期才掃描並寄信；需先配置 SMTP')
+        tick.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
+        watch = commands.add_parser('watch', help='持續檢查到期掃描；需由本機背景服務維持執行')
+        watch.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
+        commands.add_parser('scan-status', help='查看最後掃描結果與下一次到期時間')
+        resolve = commands.add_parser('notice-resolve', help='人工核對 unknown 後才允許標記或重寄')
+        resolve.add_argument('id')
+        resolve.add_argument('--outcome', choices=['delivered', 'not-delivered'], required=True)
+        resolve.add_argument('--confirm-checked', action='store_true', required=True)
+        commands.add_parser('notices', help='查看通知結果，unknown 不自動重寄')
+        commands.add_parser('instagram-check', help='只讀核對授權帳號，不代表已取得發佈權限')
+        diagnose = commands.add_parser('instagram-diagnose', help='只讀核對統一登入的商家及 IG；不建立本機狀態')
+        diagnose.add_argument('--business-id', required=True)
+        test_prepare = commands.add_parser('instagram-test-prepare', help='準備單支測試審核快照及私有副本；不上傳')
+        test_prepare.add_argument('id')
+        test_prepare.add_argument('--revision', type=int, required=True)
+        test_prepare.add_argument('--page-id', required=True)
+        test_prepare.add_argument('--api-version', required=True)
+        test_get = commands.add_parser('instagram-test-get', help='查看單支測試審核快照及持久結果')
+        test_get.add_argument('id')
+        test_cancel = commands.add_parser('instagram-test-cancel', help='取消尚未正式發佈的測試；不刪除媒體')
+        test_cancel.add_argument('id')
+        test_cancel.add_argument('--confirm-cancel', action='store_true', required=True)
+        test_publish = commands.add_parser('instagram-test-publish', help='明確核准此快照立即真實發佈；不建立持續排程')
+        test_publish.add_argument('id')
+        test_publish.add_argument('--confirm-publish-now', action='store_true', required=True)
+        test_schedule = commands.add_parser('instagram-test-schedule', help='核准單支內容及指定時間；只存本機狀態，不建立定時任務')
+        test_schedule.add_argument('id')
+        test_schedule.add_argument('--at', type=datetime.fromisoformat, required=True)
+        test_schedule.add_argument('--confirm-schedule', action='store_true', required=True)
+        test_run = commands.add_parser('instagram-test-run', help='推進已明確核准的單支排程；不提早正式發佈')
+        test_run.add_argument('id')
+        service = commands.add_parser('scan-service-prepare', help='只產生未啟用的本機背景掃描設定')
+        service.add_argument('--directory', type=Path, required=True)
+        service.add_argument('--first-scan', type=datetime.fromisoformat, required=True)
     arguments = parser.parse_args(argv)
     try:
+        if arguments.command == 'instagram-diagnose':
+            diagnosis = InstagramConnection.from_environment().diagnose(arguments.business_id, '_eric_han')
+            print(json.dumps(diagnosis, ensure_ascii=False, indent=2))
+            return 0 if diagnosis['status'] == 'identity_verified' else 1
         config = Config(arguments.database, arguments.source, arguments.published)
+        if arguments.command == 'preflight':
+            from .local_plugin import preflight
+            checked = preflight(config)
+            print(json.dumps(checked, ensure_ascii=False))
+            return 0 if checked['runtime_ready'] else 1
         if arguments.command == 'scan-service-prepare':
             from .scan_service import prepare
             print(json.dumps(prepare(config, arguments.directory, arguments.first_scan), ensure_ascii=False))
             return 0
+        output: object
         with Workflow(config) as workflow:
-            if arguments.command == 'scan':
-                output: object = asdict(workflow.scan())
+            if arguments.command == 'native-prepare':
+                output = asdict(workflow.native_prepare(arguments.id, arguments.revision,
+                                media=arguments.media, confirmed_media=arguments.confirm_media))
+            elif arguments.command == 'native-list':
+                output = [asdict(job) for job in workflow.native_list()]
+            elif arguments.command == 'native-get':
+                output = asdict(workflow.native_get(arguments.id))
+            elif arguments.command == 'native-begin':
+                output = asdict(workflow.native_begin(arguments.id, arguments.revision, action=arguments.action,
+                    confirmed=arguments.confirm_operation,
+                    caption=arguments.caption_file.read_text() if arguments.caption_file else None, scheduled_for=arguments.at))
+            elif arguments.command == 'native-observe':
+                values = json.loads(arguments.receipt.read_text())
+                if not isinstance(values, dict):
+                    raise WorkflowError('回執必須是 JSON object')
+                try:
+                    receipt = NativeObservation(**values)
+                except TypeError:
+                    raise WorkflowError('回執欄位缺少或無效') from None
+                output = asdict(workflow.native_observe(arguments.id, receipt))
+            elif arguments.command == 'native-blocked':
+                output = asdict(workflow.native_blocked(arguments.id, arguments.reason))
+            elif arguments.command == 'native-check':
+                output = workflow.native_check()
+            elif arguments.command == 'native-withdraw':
+                output = asdict(workflow.native_withdraw(arguments.id, confirmed=arguments.confirm_withdraw))
+            elif arguments.command == 'native-archive':
+                output = asdict(workflow.native_archive(arguments.id))
+            elif arguments.command == 'native-cleanup':
+                output = asdict(workflow.native_cleanup(arguments.id, confirmed=arguments.confirm_cleanup))
+            elif arguments.command == 'chat-setup':
+                output = workflow.chat_setup(first_scan=arguments.first_scan)
+            elif arguments.command == 'chat-enable':
+                output = workflow.chat_enable(confirmed=arguments.confirm_primary)
+            elif arguments.command == 'scan-release-primary':
+                output = workflow.scan_release_primary(confirmed=arguments.confirm_stopped)
+            elif arguments.command == 'chat-disable':
+                output = workflow.chat_disable()
+            elif arguments.command == 'chat-status':
+                output = workflow.chat_status()
+            elif arguments.command == 'chat-check':
+                output = asdict(workflow.chat_check())
+            elif arguments.command == 'chat-report':
+                output = asdict(workflow.chat_report(arguments.id))
+            elif arguments.command == 'chat-resolve':
+                output = asdict(workflow.chat_resolve(arguments.id, outcome=arguments.outcome,
+                                                     confirmed=arguments.confirm_checked))
+            elif arguments.command == 'chat-import':
+                imported = workflow.chat_import(arguments.ledger, confirmed=arguments.confirm_checked)
+                output = asdict(imported) if imported else None
+            elif arguments.command == 'scan':
+                output = asdict(workflow.scan())
             elif arguments.command == 'list':
                 output = [asdict(candidate) for candidate in workflow.list_candidates()]
             elif arguments.command == 'get':
@@ -77,7 +211,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 caption_text = arguments.file.read_text() if arguments.file else arguments.text
                 output = asdict(workflow.set_caption(arguments.id, caption_text))
             elif arguments.command == 'preview':
-                output = [asdict(item) for item in workflow.preview(arguments.ids, first_date=arguments.first_date)]
+                output = [asdict(item) for item in workflow.preview(arguments.ids, first_date=arguments.first_date,
+                                                                  not_before=arguments.not_before)]
             elif arguments.command == 'approve':
                 versions = json.loads(arguments.versions_file.read_text())
                 if not isinstance(versions, dict) or not all(
@@ -86,8 +221,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise WorkflowError('核准檔必須是候選 ID 與版本整數的 JSON 對照')
                 output = [asdict(item) for item in workflow.approve(versions)]
             elif arguments.command == 'tick':
+                workflow.assert_scan_channel('smtp')
                 output = asdict(workflow.tick(first_scan=arguments.first_scan, notifier=SMTPNotifier.from_environment()))
             elif arguments.command == 'watch':
+                workflow.assert_scan_channel('smtp')
                 notifier = SMTPNotifier.from_environment()
                 try:
                     while True:
@@ -104,9 +241,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                     delivered=arguments.outcome == 'delivered', confirmed=arguments.confirm_checked))
             elif arguments.command == 'notices':
                 output = [asdict(notice) for notice in workflow.notification_status()]
-            else:
+            elif arguments.command == 'instagram-check':
                 output = {'account': asdict(workflow.check_instagram(InstagramConnection.from_environment())),
                           'publishing_permission': 'not_verified', 'published': False}
+            elif arguments.command == 'instagram-test-prepare':
+                output = asdict(workflow.instagram_test_prepare(arguments.id, arguments.revision,
+                                page_id=arguments.page_id, version=arguments.api_version))
+            elif arguments.command == 'instagram-test-get':
+                output = asdict(workflow.instagram_test_get(arguments.id))
+            elif arguments.command == 'instagram-test-cancel':
+                output = asdict(workflow.instagram_test_cancel(arguments.id, confirmed=arguments.confirm_cancel))
+            elif arguments.command == 'instagram-test-schedule':
+                output = asdict(workflow.instagram_test_schedule(arguments.id, arguments.at, confirmed=arguments.confirm_schedule))
+            elif arguments.command in ('instagram-test-publish', 'instagram-test-run'):
+                job = workflow.instagram_test_get(arguments.id)
+                if arguments.command == 'instagram-test-run' and not (job.scheduled_for and job.approved_at):
+                    raise WorkflowError('此單支驗收尚未核准指定時間，不能由定時任務發佈')
+                publisher = FacebookReels(InstagramConnection.from_environment(), job.page_id)
+                publish_result = (workflow.instagram_test_run(job.id, publisher) if arguments.command == 'instagram-test-run'
+                                  else workflow.instagram_test_publish(job.id, publisher, confirmed=arguments.confirm_publish_now))
+                output = asdict(publish_result)
+                print(json.dumps(output, ensure_ascii=False, indent=2))
+                return 0 if publish_result.status in ('scheduled', 'ready', 'processing', 'published') else 1
+            else:
+                raise WorkflowError('不支援的操作')
         print(json.dumps(output, ensure_ascii=False, indent=2))
         return 0
     except (WorkflowError, OSError, ValueError, sqlite3.Error) as error:

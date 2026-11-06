@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "diffusion-reels-local",
+  "version": "0.2.2",
+  "description": "Reels 本機審核與 Meta 原生 UI 排程交付、結果核對及歸檔；真實整體驗收仍需平台證據",
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "onboardingSkill": "./skills/reels-local-review/SKILL.md"
+    }
+  }
+}

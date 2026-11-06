@@ -1,5 +1,7 @@
 # 發佈服務準備：原型與真實啟用的界線
 
+> 歷史設計／舊路徑：2026-11-03起改以[有效原生規格](../specs/instagram-reels-publishing.md)及[Meta操作手冊](../runbooks/meta-native-scheduling.md)為準。以下保留原型與當時限制，不是目前雲端部署或補發要求。
+
 2026-10-30，基於 origin/main `064bfcd`；父規格 #1 不變。#2 由另一工作區處理，這裡不操作帳號、token 或真實素材。
 
 ## 本次可交付

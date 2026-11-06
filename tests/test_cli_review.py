@@ -38,6 +38,9 @@ class ReviewCommandTests(unittest.TestCase):
             run(['caption', candidate['id'], '--text', '測試文案 #Reels'])
             first_date = (datetime.now().date() + timedelta(days=2)).isoformat()
             plan = run(['preview', candidate['id'], '--first-date', first_date])
+            deferred_date = (datetime.fromisoformat(first_date).date() + timedelta(days=8)).isoformat()
+            plan = run(['preview', candidate['id'], '--not-before', deferred_date])
+            self.assertEqual(plan[0]['scheduled_for'], deferred_date + 'T20:00:00+08:00')
             versions = root / 'review.json'
             versions.write_text(json.dumps({plan[0]['id']: plan[0]['revision']}))
             approved = run(['approve', '--versions-file', str(versions)])

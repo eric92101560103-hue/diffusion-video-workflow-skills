@@ -1,5 +1,7 @@
 # 雲端發佈候選服務備忘
 
+> 歷史設計／舊路徑：2026-11-03起改以[有效原生規格](../specs/instagram-reels-publishing.md)及[Meta操作手冊](../runbooks/meta-native-scheduling.md)為準。以下保留原型與當時限制，不是目前雲端部署或補發要求。
+
 調查日期：2026-10-29。這是後續 Issue #5 的前期資料，不代表服務已選定、已啟用或已獲付費批准。
 
 Cloudflare Workers 與 R2 是可進一步驗證的候選組合：官方文件列出 Cron Trigger、R2 Standard 儲存每月 10 GB-month 免費額度，以及 Workers Free 的每日請求額度。惟「有免費額度」不表示完全沒有訂閱、帳務或超額費用；R2 啟用需要帳號與 R2 subscription，實際配置前仍須核對帳務條件。
