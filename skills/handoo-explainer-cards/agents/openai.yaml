@@ -1,0 +1,4 @@
+interface:
+  display_name: "說明文字小卡"
+  short_description: "依剪後內容挑出轉折與重點，在原時間軸加入可逐張編輯的繁中輔助標題"
+  default_prompt: "使用 $handoo-explainer-cards，從目前開啟的專案挑選適合的段落，加入可編輯的說明文字小卡。"

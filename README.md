@@ -2,22 +2,23 @@
 
 以 Diffusion Studio 製作繁體中文字幕並輸出 IG Reels 的個人 Codex 技能集合。
 
-目前收錄兩個核心技能，另有可打包的本機審核及 Meta 原生排程工作流程 Plugin。影片的剪輯與最終人工審核由使用者負責。
+收錄剪輯、字幕、說明小卡與匯出技能，另有可打包的本機審核及 Meta 原生排程外掛。最終人工審核由使用者負責。
 
 ## 工作流程
 
-已剪影片 → 繁體中文字幕 → 人工審核 → IG Reels 匯出 → 桌面待發佈資料夾
+已剪影片 → 繁體中文字幕與說明小卡（依需要）→ 人工審核 → IG Reels 匯出 → 桌面待發佈資料夾
 
 | 技能 | 用途 | 驗證狀態 |
 | --- | --- | --- |
 | [diffusion-tc-subtitles](skills/diffusion-tc-subtitles/SKILL.md) | 本機轉錄、繁中校正、語意斷句、可編輯字幕、整組樣式控制 | 已在兩支影片上使用；結構檢查與畫面抽查通過 |
+| [handoo-explainer-cards](skills/handoo-explainer-cards/SKILL.md) | 從剪後內容挑選轉折與重點，在 Handoo 或 Diffusion 的時間軸加上可編輯說明小卡 | 原生做法已在 Handoo 專案抽查三張小卡 |
 | [diffusion-reels-export](skills/diffusion-reels-export/SKILL.md) | 人工審核後匯出高品質 Reels，檢查成片並交付 | 技能格式驗證通過；尚未實際完成一次匯出驗證 |
 
 ## 安裝
 
 1. 下載或 clone 本儲存庫。
-2. 將 `skills/` 內的兩個技能資料夾複製到 `~/.codex/skills/`；已有同名技能時先備份再比較內容。
-3. 在 Codex 中確認兩個技能已可選用；若目前對話未重新載入技能清單，開啟新對話。
+2. 將 `skills/` 內需要的技能資料夾複製到 `~/.codex/skills/`；已有同名技能時先備份再比較內容。
+3. 在 Codex 中確認所需技能已可選用；若目前對話未重新載入技能清單，開啟新對話。
 
 安裝技能不會自動安裝 Diffusion Studio、FFmpeg 或 Whisper 模型。
 
@@ -27,6 +28,12 @@
 
 ```text
 使用 $diffusion-tc-subtitles 幫我現在開啟的專案上字幕
+```
+
+需要在 Handoo Studio 或 Diffusion Studio 加說明小卡時，對 Codex 說：
+
+```text
+使用 $handoo-explainer-cards，幫我在目前開啟的專案挑幾個適合的地方加說明文字小卡
 ```
 
 人工確認字幕、時間與構圖後，再說：
